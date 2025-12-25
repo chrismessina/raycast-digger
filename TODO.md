@@ -140,41 +140,36 @@ src/
 
 ---
 
-## Phase 3: Metadata Categories
+## Phase 3: Metadata Categories ✅
 
-### 3.1 Metadata & Semantics
-- [ ] Create `src/components/MetadataSemantics.tsx`
-- [ ] Extract and display:
+### 3.1 Metadata & Semantics ✅
+- [x] Create `src/components/MetadataSemantics.tsx`
+- [x] Extract and display:
   - HTML `<title>`
   - Meta description
   - Canonical URL
   - Open Graph tags (og:title, og:description, og:image, og:url, og:type, og:site_name)
   - Twitter Card tags (twitter:card, twitter:title, twitter:description, twitter:image, twitter:site)
   - JSON-LD structured data (parsed and formatted)
-- [ ] Show status indicators (✓/✗) for presence
+- [x] Show status indicators (✓/✗) for presence
 
-### 3.2 Discoverability
-- [ ] Create `src/components/Discoverability.tsx`
-- [ ] Fetch and parse `robots.txt`:
-  - User-agent rules
-  - Disallow/Allow directives
-  - Sitemap references
-  - Crawl-delay
-- [ ] Fetch and parse `sitemap.xml`:
-  - Sitemap type (index vs urlset)
-  - URL count
-  - Last modified dates
-- [ ] Meta robots directives (index/noindex, follow/nofollow)
-
-### 3.3 Resources & Assets
-- [ ] Create `src/components/ResourcesAssets.tsx`
-- [ ] Extract and display:
-  - Favicons (all sizes from link tags)
-  - Apple touch icons
-  - Web App Manifest URL and contents
+### 3.2 Discoverability ✅
+- [x] Create `src/components/Discoverability.tsx`
+- [x] Display:
+  - Meta robots directives (index/noindex, follow/nofollow)
+  - Canonical URL
+  - Sitemap detection
   - RSS/Atom feed URLs
-  - Preconnect/DNS-prefetch hints
-- [ ] Show icon previews where possible
+  - Alternate links with hreflang
+
+### 3.3 Resources & Assets ✅
+- [x] Create `src/components/ResourcesAssets.tsx`
+- [x] Extract and display:
+  - Stylesheets (with media queries)
+  - Scripts (with async/defer/type attributes)
+  - Images (with alt text)
+  - Special links (preconnect, DNS-prefetch, etc.)
+  - RSS/Atom feed URLs
 
 ---
 

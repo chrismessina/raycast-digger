@@ -3,6 +3,9 @@ import { useEffect } from "react";
 import { validateUrl } from "./utils/urlUtils";
 import { useFetchSite } from "./hooks/useFetchSite";
 import { Overview } from "./components/Overview";
+import { MetadataSemantics } from "./components/MetadataSemantics";
+import { Discoverability } from "./components/Discoverability";
+import { ResourcesAssets } from "./components/ResourcesAssets";
 
 interface Arguments {
   url: string;
@@ -19,7 +22,6 @@ export default function Command(props: { arguments: Arguments }) {
       }
       fetchSite(inputUrl);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputUrl]);
 
   if (error) {
@@ -38,29 +40,23 @@ export default function Command(props: { arguments: Arguments }) {
         </List.Section>
       )}
 
-      <List.Section title="Metadata">
-        <List.Item
-          title="Metadata"
-          subtitle="Open Graph, Twitter Cards, JSON-LD"
-          detail={<List.Item.Detail markdown="# Metadata\n\n*Coming soon*" />}
-        />
-      </List.Section>
+      {data && (
+        <List.Section title="Metadata">
+          <MetadataSemantics data={data} />
+        </List.Section>
+      )}
 
-      <List.Section title="Discoverability">
-        <List.Item
-          title="Discoverability"
-          subtitle="Robots, Canonical, Sitemaps"
-          detail={<List.Item.Detail markdown="# Discoverability\n\n*Coming soon*" />}
-        />
-      </List.Section>
+      {data && (
+        <List.Section title="Discoverability">
+          <Discoverability data={data} />
+        </List.Section>
+      )}
 
-      <List.Section title="Resources">
-        <List.Item
-          title="Resources"
-          subtitle="Stylesheets, Scripts, Images"
-          detail={<List.Item.Detail markdown="# Resources\n\n*Coming soon*" />}
-        />
-      </List.Section>
+      {data && (
+        <List.Section title="Resources">
+          <ResourcesAssets data={data} />
+        </List.Section>
+      )}
 
       <List.Section title="Networking">
         <List.Item

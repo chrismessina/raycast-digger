@@ -101,11 +101,63 @@ export function useFetchSite(url: string) {
           discoverability.rss = rssLink;
         }
 
+        const stylesheets: Array<{ href: string; media?: string }> = [];
+        $('link[rel="stylesheet"]').each((_, el) => {
+          const href = $(el).attr("href");
+          if (href) {
+            stylesheets.push({
+              href,
+              media: $(el).attr("media"),
+            });
+          }
+        });
+
+        const scripts: Array<{ src: string; async?: boolean; defer?: boolean; type?: string }> = [];
+        $("script[src]").each((_, el) => {
+          const src = $(el).attr("src");
+          if (src) {
+            scripts.push({
+              src,
+              async: $(el).attr("async") !== undefined,
+              defer: $(el).attr("defer") !== undefined,
+              type: $(el).attr("type"),
+            });
+          }
+        });
+
+        const images: Array<{ src: string; alt?: string }> = [];
+        $("img[src]").each((_, el) => {
+          const src = $(el).attr("src");
+          if (src) {
+            images.push({
+              src,
+              alt: $(el).attr("alt"),
+            });
+          }
+        });
+
+        const links: Array<{ href: string; rel?: string }> = [];
+        $('link[rel]:not([rel="stylesheet"]):not([rel="alternate"])').each((_, el) => {
+          const href = $(el).attr("href");
+          if (href) {
+            links.push({
+              href,
+              rel: $(el).attr("rel"),
+            });
+          }
+        });
+
         const result: DiggerResult = {
           url: normalizedUrl,
           overview,
           metadata,
           discoverability,
+          resources: {
+            stylesheets: stylesheets.length > 0 ? stylesheets : undefined,
+            scripts: scripts.length > 0 ? scripts : undefined,
+            images: images.length > 0 ? images : undefined,
+            links: links.length > 0 ? links : undefined,
+          },
           networking: {
             statusCode: status,
             headers,
