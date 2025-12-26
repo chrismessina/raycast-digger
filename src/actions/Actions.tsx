@@ -15,7 +15,7 @@ export function Actions({ data, url, onRefresh }: ActionsProps) {
   return (
     <ActionPanel>
       <ActionPanel.Section title="Browser">
-        <BrowserActions url={url} html={data.html} />
+        <BrowserActions url={url} />
       </ActionPanel.Section>
 
       <ActionPanel.Section title="Copy">

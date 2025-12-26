@@ -3,10 +3,62 @@ import { showToast, Toast } from "@raycast/api";
 import { fetchWithTimeout } from "../utils/fetcher";
 import { normalizeUrl } from "../utils/urlUtils";
 import { useCache } from "./useCache";
-import { DiggerResult, OverviewData, MetadataData, DiscoverabilityData } from "../types";
-import { getMetaContent, getLinkHref, getJsonLd, getAllMeta } from "../utils/htmlParser";
+import { DiggerResult, OverviewData, MetadataData, DiscoverabilityData, HistoryData } from "../types";
 import { performDNSLookup, getTLSCertificateInfo, CertificateInfo } from "../utils/dnsUtils";
 import * as cheerio from "cheerio";
+
+async function fetchWaybackMachineData(url: string): Promise<HistoryData | undefined> {
+  try {
+    const apiUrl = `https://archive.org/wayback/available?url=${encodeURIComponent(url)}`;
+    const response = await fetch(apiUrl);
+    
+    if (!response.ok) {
+      return undefined;
+    }
+
+    const data = (await response.json()) as {
+      archived_snapshots?: {
+        closest?: {
+          timestamp?: string;
+          url?: string;
+        };
+      };
+    };
+    
+    if (!data.archived_snapshots?.closest) {
+      return undefined;
+    }
+
+    const snapshot = data.archived_snapshots.closest;
+    
+    // Get additional snapshot count from CDX API
+    const cdxUrl = `https://web.archive.org/cdx/search/cdx?url=${encodeURIComponent(url)}&output=json&limit=1&fl=timestamp&collapse=timestamp:8`;
+    const cdxResponse = await fetch(cdxUrl);
+    
+    let snapshotCount = 0;
+    if (cdxResponse.ok) {
+      const cdxData = await cdxResponse.json();
+      snapshotCount = Array.isArray(cdxData) ? Math.max(0, cdxData.length - 1) : 0;
+    }
+
+    return {
+      waybackMachineSnapshots: snapshotCount,
+      firstSeen: snapshot.timestamp ? formatWaybackDate(snapshot.timestamp) : undefined,
+      lastSeen: snapshot.timestamp ? formatWaybackDate(snapshot.timestamp) : undefined,
+      archiveUrl: `https://web.archive.org/web/*/${url}`,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function formatWaybackDate(timestamp: string): string {
+  // Wayback timestamps are in format: YYYYMMDDhhmmss
+  const year = timestamp.substring(0, 4);
+  const month = timestamp.substring(4, 6);
+  const day = timestamp.substring(6, 8);
+  return `${year}-${month}-${day}`;
+}
 
 export function useFetchSite(url?: string) {
   const [data, setData] = useState<DiggerResult | null>(null);
@@ -41,13 +93,20 @@ export function useFetchSite(url?: string) {
         }
 
         const { response, status, headers, timing, finalUrl } = htmlResult.value;
-        const html = await response.text();
-        const $ = cheerio.load(html);
+        const fullHtml = await response.text();
+        
+        // Extract only <head> content to reduce memory usage on large pages
+        const headMatch = fullHtml.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+        const headHtml = headMatch ? `<html><head>${headMatch[1]}</head></html>` : fullHtml.slice(0, 50000);
+        const $ = cheerio.load(headHtml);
+        
+        // Get language from html tag in full HTML (it's at the start, so cheap to extract)
+        const langMatch = fullHtml.match(/<html[^>]*\slang=["']([^"']+)["']/i);
 
         const overview: OverviewData = {
           title: $("title").text() || undefined,
-          description: getMetaContent(html, "description"),
-          language: $("html").attr("lang"),
+          description: $('meta[name="description"]').attr("content"),
+          language: langMatch?.[1],
           charset: $("meta[charset]").attr("charset") || undefined,
         };
 
@@ -69,16 +128,41 @@ export function useFetchSite(url?: string) {
           }
         });
 
+        // Extract JSON-LD using existing $ instance
+        const jsonLdScripts: Array<Record<string, unknown>> = [];
+        $('script[type="application/ld+json"]').each((_, element) => {
+          try {
+            const content = $(element).html();
+            if (content) {
+              jsonLdScripts.push(JSON.parse(content));
+            }
+          } catch {
+            // Skip invalid JSON-LD
+          }
+        });
+
+        // Extract meta tags using existing $ instance
+        const metaTags: Array<{ name?: string; property?: string; content?: string }> = [];
+        $("meta").each((_, element) => {
+          const $meta = $(element);
+          const name = $meta.attr("name");
+          const property = $meta.attr("property");
+          const content = $meta.attr("content");
+          if ((name || property) && content) {
+            metaTags.push({ name, property, content });
+          }
+        });
+
         const metadata: MetadataData = {
           openGraph: Object.keys(openGraph).length > 0 ? openGraph : undefined,
           twitterCard: Object.keys(twitterCard).length > 0 ? twitterCard : undefined,
-          jsonLd: getJsonLd(html),
-          metaTags: getAllMeta(html),
+          jsonLd: jsonLdScripts.length > 0 ? jsonLdScripts : undefined,
+          metaTags: metaTags.length > 0 ? metaTags : undefined,
         };
 
         const discoverability: DiscoverabilityData = {
-          robots: getMetaContent(html, "robots"),
-          canonical: getLinkHref(html, "canonical"),
+          robots: $('meta[name="robots"]').attr("content"),
+          canonical: $('link[rel="canonical"]').attr("href"),
           sitemap:
             sitemapResult.status === "fulfilled" && sitemapResult.value ? `${normalizedUrl}/sitemap.xml` : undefined,
         };
@@ -98,13 +182,15 @@ export function useFetchSite(url?: string) {
           discoverability.alternates = alternates;
         }
 
-        const rssLink = getLinkHref(html, "alternate");
+        const rssLink = $('link[rel="alternate"][type="application/rss+xml"]').attr("href");
         if (rssLink) {
           discoverability.rss = rssLink;
         }
 
+        const MAX_RESOURCES = 50; // Limit to prevent memory issues on large sites
+
         const stylesheets: Array<{ href: string; media?: string }> = [];
-        $('link[rel="stylesheet"]').each((_, el) => {
+        $('link[rel="stylesheet"]').slice(0, MAX_RESOURCES).each((_, el) => {
           const href = $(el).attr("href");
           if (href) {
             stylesheets.push({
@@ -115,7 +201,7 @@ export function useFetchSite(url?: string) {
         });
 
         const scripts: Array<{ src: string; async?: boolean; defer?: boolean; type?: string }> = [];
-        $("script[src]").each((_, el) => {
+        $("script[src]").slice(0, MAX_RESOURCES).each((_, el) => {
           const src = $(el).attr("src");
           if (src) {
             scripts.push({
@@ -128,7 +214,7 @@ export function useFetchSite(url?: string) {
         });
 
         const images: Array<{ src: string; alt?: string }> = [];
-        $("img[src]").each((_, el) => {
+        $("img[src]").slice(0, MAX_RESOURCES).each((_, el) => {
           const src = $(el).attr("src");
           if (src) {
             images.push({
@@ -139,7 +225,7 @@ export function useFetchSite(url?: string) {
         });
 
         const links: Array<{ href: string; rel?: string }> = [];
-        $('link[rel]:not([rel="stylesheet"]):not([rel="alternate"])').each((_, el) => {
+        $('link[rel]:not([rel="stylesheet"]):not([rel="alternate"])').slice(0, MAX_RESOURCES).each((_, el) => {
           const href = $(el).attr("href");
           if (href) {
             links.push({
@@ -152,9 +238,39 @@ export function useFetchSite(url?: string) {
         const urlObj = new URL(normalizedUrl);
         const hostname = urlObj.hostname;
 
-        const [dnsData, certInfo] = await Promise.all([
+        // Extract feed URLs
+        const rssFeeds: Array<{ url: string; title?: string }> = [];
+        const atomFeeds: Array<{ url: string; title?: string }> = [];
+        const jsonFeeds: Array<{ url: string; title?: string }> = [];
+
+        $('link[type="application/rss+xml"]').each((_, el) => {
+          const href = $(el).attr("href");
+          const title = $(el).attr("title");
+          if (href) {
+            rssFeeds.push({ url: href.startsWith("http") ? href : new URL(href, normalizedUrl).href, title });
+          }
+        });
+
+        $('link[type="application/atom+xml"]').each((_, el) => {
+          const href = $(el).attr("href");
+          const title = $(el).attr("title");
+          if (href) {
+            atomFeeds.push({ url: href.startsWith("http") ? href : new URL(href, normalizedUrl).href, title });
+          }
+        });
+
+        $('link[type="application/json"], link[type="application/feed+json"]').each((_, el) => {
+          const href = $(el).attr("href");
+          const title = $(el).attr("title");
+          if (href) {
+            jsonFeeds.push({ url: href.startsWith("http") ? href : new URL(href, normalizedUrl).href, title });
+          }
+        });
+
+        const [dnsData, certInfo, waybackData] = await Promise.all([
           performDNSLookup(hostname).catch(() => undefined),
           getTLSCertificateInfo(hostname).catch(() => null),
+          fetchWaybackMachineData(normalizedUrl).catch(() => undefined),
         ]);
 
         if (certInfo) {
@@ -163,7 +279,6 @@ export function useFetchSite(url?: string) {
 
         const result: DiggerResult = {
           url: normalizedUrl,
-          html,
           overview,
           metadata,
           discoverability,
@@ -182,8 +297,17 @@ export function useFetchSite(url?: string) {
           dns: dnsData,
           performance: {
             loadTime: timing,
-            pageSize: html.length,
+            pageSize: fullHtml.length,
           },
+          history: waybackData,
+          dataFeeds:
+            rssFeeds.length > 0 || atomFeeds.length > 0 || jsonFeeds.length > 0
+              ? {
+                  rss: rssFeeds.length > 0 ? rssFeeds : undefined,
+                  atom: atomFeeds.length > 0 ? atomFeeds : undefined,
+                  json: jsonFeeds.length > 0 ? jsonFeeds : undefined,
+                }
+              : undefined,
           fetchedAt: Date.now(),
         };
 

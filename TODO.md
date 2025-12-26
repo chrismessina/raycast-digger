@@ -256,17 +256,17 @@ src/
   - Web Vitals hints (if detectable)
 
 ### 6.2 History & Evolution
-- [ ] Create `src/components/HistoryEvolution.tsx`
-- [ ] Wayback Machine API integration:
+- [x] Create `src/components/HistoryEvolution.tsx`
+- [x] Wayback Machine API integration:
   - First capture date
   - Last capture date
   - Total snapshots count
   - Link to browse history
-- [ ] Show timeline if available
+- [x] Show timeline if available
 
 ### 6.3 Data Feeds & API
-- [ ] Create `src/components/DataFeedsAPI.tsx`
-- [ ] Extract and display:
+- [x] Create `src/components/DataFeedsAPI.tsx`
+- [x] Extract and display:
   - RSS/Atom feed previews (title, item count)
   - JSON-LD data formatted
   - API discovery hints (link rel="api")

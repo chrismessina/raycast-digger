@@ -8,6 +8,8 @@ import { Discoverability } from "./components/Discoverability";
 import { ResourcesAssets } from "./components/ResourcesAssets";
 import { NetworkingSecurity } from "./components/NetworkingSecurity";
 import { DNSCertificates } from "./components/DNSCertificates";
+import { HistoryEvolution } from "./components/HistoryEvolution";
+import { DataFeedsAPI } from "./components/DataFeedsAPI";
 
 interface Arguments {
   url?: string;
@@ -131,21 +133,17 @@ export default function Command(props: { arguments: Arguments }) {
         />
       </List.Section>
 
-      <List.Section title="History">
-        <List.Item
-          title="History"
-          subtitle="Wayback Machine"
-          detail={<List.Item.Detail markdown="# History\n\n*Coming soon*" />}
-        />
-      </List.Section>
+      {data && (
+        <List.Section title="History">
+          <HistoryEvolution data={data} onRefresh={refetch} />
+        </List.Section>
+      )}
 
-      <List.Section title="Data Feeds">
-        <List.Item
-          title="Data Feeds"
-          subtitle="RSS, Atom, JSON"
-          detail={<List.Item.Detail markdown="# Data Feeds\n\n*Coming soon*" />}
-        />
-      </List.Section>
+      {data && (
+        <List.Section title="Data Feeds">
+          <DataFeedsAPI data={data} onRefresh={refetch} />
+        </List.Section>
+      )}
     </List>
   );
 }
