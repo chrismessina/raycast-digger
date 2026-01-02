@@ -1,80 +1,169 @@
 import { List, Icon, Color } from "@raycast/api";
+import { getProgressIcon } from "@raycast/utils";
 import { DiggerResult } from "../types";
-import { Actions } from "../actions";
+import { Actions, DiscoverabilityActions } from "../actions";
+import { truncateText } from "../utils/formatters";
+import { resolveUrl, getRootResourceUrl } from "../utils/urlUtils";
 
 interface DiscoverabilityProps {
-  data: DiggerResult;
+  data: DiggerResult | null;
   onRefresh: () => void;
+  progress: number;
 }
 
-export function Discoverability({ data, onRefresh }: DiscoverabilityProps) {
+export function Discoverability({ data, onRefresh, progress }: DiscoverabilityProps) {
+  // Show progress icon until this section is complete
+  const isLoading = progress < 1;
+
+  if (!data) {
+    return (
+      <List.Item
+        title="Discoverability"
+        icon={isLoading ? getProgressIcon(progress, Color.Blue) : Icon.MagnifyingGlass}
+        detail={
+          <List.Item.Detail
+            metadata={
+              <List.Item.Detail.Metadata>
+                <List.Item.Detail.Metadata.Label title="Checking discoverability..." />
+                <List.Item.Detail.Metadata.Label title="" text="Analyzing robots, canonical URLs, and sitemaps" />
+              </List.Item.Detail.Metadata>
+            }
+          />
+        }
+      />
+    );
+  }
+
   const { discoverability } = data;
 
   const hasRobots = !!discoverability?.robots;
   const hasCanonical = !!discoverability?.canonical;
   const hasSitemap = !!discoverability?.sitemap;
-  const hasRss = !!discoverability?.rss;
-  const hasAtom = !!discoverability?.atom;
-  const hasAlternates = discoverability?.alternates && discoverability.alternates.length > 0;
+  const hasAlternates = !!(discoverability?.alternates && discoverability.alternates.length > 0);
+  const hasDiscoverability = hasCanonical || hasSitemap;
 
-  const alternatesSection = hasAlternates
-    ? discoverability
-        .alternates!.map((alt) => {
-          const parts = [`- **${alt.href}**`];
-          if (alt.hreflang) parts.push(`(lang: ${alt.hreflang})`);
-          if (alt.type) parts.push(`(type: ${alt.type})`);
-          return parts.join(" ");
-        })
-        .join("\n")
-    : "*No alternate links found*";
+  // Resolve sitemap URL to absolute URL (handles relative URLs like /sitemap.xml)
+  const sitemapUrl = discoverability?.sitemap ? resolveUrl(discoverability.sitemap, data.url) : undefined;
 
-  const markdown = `
-# Discoverability
+  // Construct robots.txt URL from base URL
+  const robotsUrl = getRootResourceUrl("robots.txt", data.url);
 
-## Meta Robots
-
-- **Robots Meta Tag**: ${discoverability?.robots || "Not specified"} ${hasRobots ? "✓" : "✗"}
-
-## Canonical URL
-
-- **Canonical**: ${discoverability?.canonical || "Not specified"} ${hasCanonical ? "✓" : "✗"}
-
-## Sitemaps
-
-- **Sitemap**: ${discoverability?.sitemap || "Not found"} ${hasSitemap ? "✓" : "✗"}
-
-## Feeds
-
-- **RSS Feed**: ${discoverability?.rss || "Not found"} ${hasRss ? "✓" : "✗"}
-- **Atom Feed**: ${discoverability?.atom || "Not found"} ${hasAtom ? "✓" : "✗"}
-
-## Alternate Links ${hasAlternates ? "✓" : "✗"}
-
-${alternatesSection}
-
----
-
-### Notes
-
-- **robots.txt**: Check manually at \`/robots.txt\`
-- **sitemap.xml**: Check manually at \`/sitemap.xml\`
-  `.trim();
-
-  const getStatusIcon = (hasData: boolean) => {
-    return hasData ? { source: Icon.Check, tintColor: Color.Green } : { source: Icon.Xmark, tintColor: Color.Red };
-  };
-
-  const subtitle = [hasCanonical && "Canonical", hasSitemap && "Sitemap", hasRss && "RSS", hasRobots && "Robots"]
-    .filter(Boolean)
-    .join(", ");
+  // Show progress icon while loading, then show magnifying glass icon
+  const listIcon = isLoading ? getProgressIcon(progress, Color.Blue) : Icon.MagnifyingGlass;
 
   return (
     <List.Item
       title="Discoverability"
-      subtitle={subtitle || "Limited discoverability"}
-      icon={getStatusIcon(hasCanonical || hasSitemap || hasRss)}
-      detail={<List.Item.Detail markdown={markdown} />}
-      actions={<Actions data={data} url={data.url} onRefresh={onRefresh} />}
+      icon={listIcon}
+      accessories={hasDiscoverability ? [{ icon: { source: Icon.Check, tintColor: Color.Green } }] : undefined}
+      detail={
+        <DiscoverabilityDetail
+          data={data}
+          hasRobots={hasRobots}
+          hasCanonical={hasCanonical}
+          hasSitemap={hasSitemap}
+          hasAlternates={hasAlternates}
+        />
+      }
+      actions={
+        <Actions
+          data={data}
+          url={data.url}
+          onRefresh={onRefresh}
+          sectionActions={
+            <DiscoverabilityActions
+              sitemapUrl={sitemapUrl}
+              robotsUrl={robotsUrl}
+            />
+          }
+        />
+      }
+    />
+  );
+}
+
+interface DiscoverabilityDetailProps {
+  data: DiggerResult;
+  hasRobots: boolean;
+  hasCanonical: boolean;
+  hasSitemap: boolean;
+  hasAlternates: boolean;
+}
+
+function DiscoverabilityDetail({
+  data,
+  hasRobots,
+  hasCanonical,
+  hasSitemap,
+  hasAlternates,
+}: DiscoverabilityDetailProps) {
+  const { discoverability } = data;
+
+  return (
+    <List.Item.Detail
+      metadata={
+        <List.Item.Detail.Metadata>
+          <List.Item.Detail.Metadata.Label title="SEO & Crawling" />
+          <List.Item.Detail.Metadata.Label
+            title="Robots Meta Tag"
+            text={discoverability?.robots || "Not specified"}
+            icon={
+              hasRobots ? { source: Icon.Check, tintColor: Color.Green } : { source: Icon.Xmark, tintColor: Color.Red }
+            }
+          />
+          {hasCanonical ? (
+            <List.Item.Detail.Metadata.Link
+              title="Canonical URL"
+              target={discoverability!.canonical!}
+              text={truncateText(discoverability!.canonical!, 50)}
+            />
+          ) : (
+            <List.Item.Detail.Metadata.Label
+              title="Canonical URL"
+              text="Not specified"
+              icon={{ source: Icon.Xmark, tintColor: Color.Red }}
+            />
+          )}
+          {hasSitemap ? (
+            <List.Item.Detail.Metadata.Link
+              title="Sitemap"
+              target={discoverability!.sitemap!}
+              text={truncateText(discoverability!.sitemap!, 50)}
+            />
+          ) : (
+            <List.Item.Detail.Metadata.Label
+              title="Sitemap"
+              text="Not found"
+              icon={{ source: Icon.Xmark, tintColor: Color.Red }}
+            />
+          )}
+
+          <List.Item.Detail.Metadata.Separator />
+          <List.Item.Detail.Metadata.Label
+            title="Alternate Links"
+            icon={
+              hasAlternates
+                ? { source: Icon.Check, tintColor: Color.Green }
+                : { source: Icon.Xmark, tintColor: Color.Red }
+            }
+          />
+          {hasAlternates &&
+            discoverability!
+              .alternates!.slice(0, 5)
+              .map((alt, index) => (
+                <List.Item.Detail.Metadata.Link
+                  key={index}
+                  title={alt.hreflang || alt.type || "Alternate"}
+                  target={alt.href}
+                  text={truncateText(alt.href, 50)}
+                />
+              ))}
+          {hasAlternates && discoverability!.alternates!.length > 5 && (
+            <List.Item.Detail.Metadata.Label title="" text={`...and ${discoverability!.alternates!.length - 5} more`} />
+          )}
+          {!hasAlternates && <List.Item.Detail.Metadata.Label title="" text="No alternate links found" />}
+        </List.Item.Detail.Metadata>
+      }
     />
   );
 }

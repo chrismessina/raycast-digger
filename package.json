@@ -18,6 +18,17 @@
   "crossExtensions": [
     "pernielsentikaer/wayback-machine"
   ],
+  "preferences": [
+    {
+      "name": "verboseLogging",
+      "title": "Debug Logging",
+      "description": "Enable extra diagnostics for troubleshooting and bug reports.",
+      "type": "checkbox",
+      "label": "Enable",
+      "default": false,
+      "required": false
+    }
+  ],
   "commands": [
     {
       "name": "digger",
@@ -28,9 +39,9 @@
       "arguments": [
         {
           "name": "url",
-          "placeholder": "URL",
+          "placeholder": "https://raycast.com",
           "type": "text",
-          "required": false
+          "required": true
         }
       ],
       "preferences": [
@@ -73,6 +84,7 @@
     }
   ],
   "dependencies": {
+    "@chrismessina/raycast-logger": "^1.0.0",
     "@raycast/api": "^1.104.1",
     "@raycast/utils": "^2.2.2",
     "cheerio": "^1.1.2",

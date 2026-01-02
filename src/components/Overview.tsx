@@ -1,87 +1,107 @@
-import { List, Icon } from "@raycast/api";
+import { List, Icon, Color } from "@raycast/api";
+import { getProgressIcon } from "@raycast/utils";
 import { DiggerResult } from "../types";
 import { Actions } from "../actions";
+import { formatBytes, getStatusText } from "../utils/formatters";
 
 interface OverviewProps {
-  data: DiggerResult;
+  data: DiggerResult | null;
   onRefresh: () => void;
+  overallProgress: number;
 }
 
-export function Overview({ data, onRefresh }: OverviewProps) {
-  const { overview, networking, performance } = data;
+export function Overview({ data, onRefresh, overallProgress }: OverviewProps) {
+  // Show progress icon until ALL fetches are complete (overallProgress = 1)
+  const isStillLoading = overallProgress < 1;
+  const progressIcon = isStillLoading ? getProgressIcon(overallProgress, Color.Blue) : Icon.Globe;
 
-  const statusText = networking?.statusCode
-    ? `${networking.statusCode} ${getStatusText(networking.statusCode)}`
-    : "Unknown";
+  if (!data) {
+    return (
+      <List.Item
+        title="Overview"
+        icon={progressIcon}
+        detail={
+          <List.Item.Detail
+            metadata={
+              <List.Item.Detail.Metadata>
+                <List.Item.Detail.Metadata.Label title="Loading site data..." />
+                <List.Item.Detail.Metadata.Label
+                  title=""
+                  text="Fetching HTML, parsing metadata, and analyzing content"
+                />
+              </List.Item.Detail.Metadata>
+            }
+          />
+        }
+      />
+    );
+  }
 
+  const { overview, networking } = data;
+
+  const statusCode = networking?.statusCode;
+  const statusText = statusCode ? `${statusCode} ${getStatusText(statusCode)}` : "Unknown";
   const contentType = networking?.headers?.["content-type"] || "Unknown";
   const contentLength = networking?.headers?.["content-length"]
     ? formatBytes(parseInt(networking.headers["content-length"]))
     : "Unknown";
-
-  const markdown = `
-# ${overview?.title || "Untitled"}
-
-${overview?.description || "*No description available*"}
-
----
-
-## Response Details
-
-- **Status**: ${statusText}
-- **Final URL**: ${networking?.finalUrl || data.url}
-- **Response Time**: ${performance?.loadTime ? `${Math.round(performance.loadTime)}ms` : "N/A"}
-- **Content-Type**: ${contentType}
-- **Content-Length**: ${contentLength}
-- **Server**: ${networking?.server || "Unknown"}
-
-${overview?.language ? `- **Language**: ${overview.language}` : ""}
-${overview?.charset ? `- **Charset**: ${overview.charset}` : ""}
-
----
-
-## Page Information
-
-- **Title**: ${overview?.title || "N/A"}
-- **Description**: ${overview?.description || "N/A"}
-${performance?.pageSize ? `- **Page Size**: ${formatBytes(performance.pageSize)}` : ""}
-  `.trim();
+  const finalUrl = networking?.finalUrl || data.url;
 
   return (
     <List.Item
       title="Overview"
       subtitle={overview?.title || data.url}
-      icon={Icon.Globe}
-      detail={<List.Item.Detail markdown={markdown} />}
+      icon={progressIcon}
+      detail={
+        <OverviewDetail
+          data={data}
+          statusText={statusText}
+          contentType={contentType}
+          contentLength={contentLength}
+          finalUrl={finalUrl}
+        />
+      }
       actions={<Actions data={data} url={data.url} onRefresh={onRefresh} />}
     />
   );
 }
 
-function getStatusText(code: number): string {
-  const statusTexts: Record<number, string> = {
-    200: "OK",
-    201: "Created",
-    204: "No Content",
-    301: "Moved Permanently",
-    302: "Found",
-    304: "Not Modified",
-    400: "Bad Request",
-    401: "Unauthorized",
-    403: "Forbidden",
-    404: "Not Found",
-    500: "Internal Server Error",
-    502: "Bad Gateway",
-    503: "Service Unavailable",
-  };
-
-  return statusTexts[code] || "Unknown";
+interface OverviewDetailProps {
+  data: DiggerResult;
+  statusText: string;
+  contentType: string;
+  contentLength: string;
+  finalUrl: string;
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 Bytes";
-  const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
+function OverviewDetail({ data, statusText, contentType, contentLength, finalUrl }: OverviewDetailProps) {
+  const { overview, networking, performance } = data;
+
+  return (
+    <List.Item.Detail
+      metadata={
+        <List.Item.Detail.Metadata>
+          <List.Item.Detail.Metadata.Label title={overview?.title || "Untitled"} />
+          {overview?.description && <List.Item.Detail.Metadata.Label title="" text={overview.description} />}
+          <List.Item.Detail.Metadata.Separator />
+          <List.Item.Detail.Metadata.Label title="Response Details" />
+          <List.Item.Detail.Metadata.Label
+            title="Status"
+            text={statusText}
+            icon={networking?.statusCode === 200 ? { source: Icon.Check, tintColor: Color.Green } : undefined}
+          />
+          <List.Item.Detail.Metadata.Link title="Final URL" target={finalUrl} text={finalUrl} />
+          <List.Item.Detail.Metadata.Label
+            title="Response Time"
+            text={performance?.loadTime ? `${Math.round(performance.loadTime)}ms` : "N/A"}
+          />
+          <List.Item.Detail.Metadata.Label title="Content-Type" text={contentType} />
+          <List.Item.Detail.Metadata.Label title="Content-Length" text={contentLength} />
+          <List.Item.Detail.Metadata.Label title="Server" text={networking?.server || "Unknown"} />
+          {overview?.language && <List.Item.Detail.Metadata.Label title="Language" text={overview.language} />}
+          {overview?.charset && <List.Item.Detail.Metadata.Label title="Charset" text={overview.charset} />}
+        </List.Item.Detail.Metadata>
+      }
+    />
+  );
 }

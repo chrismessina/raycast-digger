@@ -2,6 +2,7 @@ import * as dns from "dns";
 import * as tls from "tls";
 import { promisify } from "util";
 import { DNSData } from "../types";
+import { TIMEOUTS, LIMITS } from "./config";
 
 const resolve4 = promisify(dns.resolve4);
 const resolve6 = promisify(dns.resolve6);
@@ -79,7 +80,7 @@ export interface CertificateInfo {
   certificateChain?: string[];
 }
 
-export async function getTLSCertificateInfo(hostname: string, port = 443): Promise<CertificateInfo | null> {
+export async function getTLSCertificateInfo(hostname: string, port = LIMITS.TLS_PORT): Promise<CertificateInfo | null> {
   return new Promise((resolve) => {
     const socket = tls.connect(
       {
@@ -141,7 +142,7 @@ export async function getTLSCertificateInfo(hostname: string, port = 443): Promi
       resolve(null);
     });
 
-    socket.setTimeout(5000, () => {
+    socket.setTimeout(TIMEOUTS.TLS_SOCKET, () => {
       socket.destroy();
       resolve(null);
     });

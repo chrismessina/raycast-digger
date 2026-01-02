@@ -16,7 +16,7 @@
 
 ## File Structure
 
-```
+```text
 src/
 ├── digger.tsx                    # Main command (URL input → List view)
 ├── components/
@@ -50,6 +50,7 @@ src/
 ## Phase 1: Foundation ✅
 
 ### 1.1 Type Definitions ✅
+
 - [x] Create `src/types/index.ts`
 - [x] Define `DiggerResult` interface (main data structure)
 - [x] Define `CacheEntry` interface
@@ -65,6 +66,7 @@ src/
   - `DataFeedsData`
 
 ### 1.2 URL Utilities ✅
+
 - [x] Create `src/utils/urlUtils.ts`
 - [x] `normalizeUrl(url: string)`: Add protocol if missing, lowercase, remove trailing slash
 - [x] `validateUrl(url: string)`: Check if valid URL format
@@ -72,12 +74,14 @@ src/
 - [x] `getCacheKey(url: string)`: Generate consistent cache key
 
 ### 1.3 Fetcher with Timeout ✅
+
 - [x] Create `src/utils/fetcher.ts`
 - [x] `fetchWithTimeout(url: string, timeout?: number)`: Native fetch with AbortController
 - [x] Default timeout: 5000ms
 - [x] Return response metadata (status, headers, timing, final URL after redirects)
 
 ### 1.4 Cache Hook ✅
+
 - [x] Create `src/hooks/useCache.ts`
 - [x] `useCache()` hook returning:
   - `getFromCache(url: string)`: Get cached entry if valid (< 48 hours)
@@ -86,6 +90,7 @@ src/
   - `refreshEntry(url: string)`: Force invalidate single entry
 - [x] Implement LRU eviction (max 50 entries)
 - [x] Cache structure in LocalStorage:
+
   ```typescript
   interface CacheEntry {
     url: string;
@@ -96,6 +101,7 @@ src/
   ```
 
 ### 1.5 Main Command Shell ✅
+
 - [x] Create `src/digger.tsx`
 - [x] URL input via `arguments` (like open-graph extension)
 - [x] Auto-prepend `https://` if no protocol
@@ -108,6 +114,7 @@ src/
 ## Phase 2: Core Fetching & Parsing ✅
 
 ### 2.1 HTML Parser Utilities ✅
+
 - [x] Create `src/utils/htmlParser.ts`
 - [x] Use Cheerio for parsing
 - [x] Helper functions:
@@ -118,6 +125,7 @@ src/
   - `getAllMeta(html)`: Get all meta tags as object
 
 ### 2.2 Main Fetch Orchestrator ✅
+
 - [x] Create `src/hooks/useFetchSite.ts`
 - [x] `useFetchSite(url: string)` hook:
   - Check cache first
@@ -127,6 +135,7 @@ src/
   - Return `{ data, isLoading, error, refetch }`
 
 ### 2.3 Overview Component ✅
+
 - [x] Create `src/components/Overview.tsx`
 - [x] Display:
   - Icon (using Icon.Globe)
@@ -143,6 +152,7 @@ src/
 ## Phase 3: Metadata Categories ✅
 
 ### 3.1 Metadata & Semantics ✅
+
 - [x] Create `src/components/MetadataSemantics.tsx`
 - [x] Extract and display:
   - HTML `<title>`
@@ -152,8 +162,10 @@ src/
   - Twitter Card tags (twitter:card, twitter:title, twitter:description, twitter:image, twitter:site)
   - JSON-LD structured data (parsed and formatted)
 - [x] Show status indicators (✓/✗) for presence
+- [x] Add support for [Web Host Metadata](https://datatracker.ietf.org/doc/html/rfc6415)
 
 ### 3.2 Discoverability ✅
+
 - [x] Create `src/components/Discoverability.tsx`
 - [x] Display:
   - Meta robots directives (index/noindex, follow/nofollow)
@@ -163,6 +175,7 @@ src/
   - Alternate links with hreflang
 
 ### 3.3 Resources & Assets ✅
+
 - [x] Create `src/components/ResourcesAssets.tsx`
 - [x] Extract and display:
   - Stylesheets (with media queries)
@@ -181,6 +194,7 @@ src/
 ## Phase 4: Actions ✅
 
 ### 4.1 Shared Actions Component ✅
+
 - [x] Create `src/actions/Actions.tsx`
 - [x] Common actions:
   - **Open in Browser**: Open URL in default browser
@@ -189,6 +203,7 @@ src/
   - **Clear Cache**: Remove all cached entries
 
 ### 4.2 Copy Actions ✅
+
 - [x] **Copy as JSON**: Full structured data export
 - [x] **Copy as Markdown**: Formatted report
 - [x] **Copy Individual Values**: Context-aware per category
@@ -199,6 +214,7 @@ src/
   - etc.
 
 ### 4.3 External Actions ✅
+
 - [x] **Open in Wayback Machine**: Link to archive.org
 - [x] **View Page Source**: Open view-source: URL
 - [x] **Check on Google**: Search for site:domain
@@ -208,6 +224,7 @@ src/
 ## Phase 5: Network & DNS ✅
 
 ### 5.1 Networking & Security
+
 - [x] Create `src/components/NetworkingSecurity.tsx`
 - [x] Display HTTP headers:
   - Server
@@ -226,6 +243,7 @@ src/
 - [x] Show status indicators (✓ present, ✗ missing)
 
 ### 5.2 DNS & Certificates
+
 - [x] Create `src/utils/dnsUtils.ts`
 - [x] Create `src/components/DNSCertificates.tsx`
 - [x] DNS lookups (using Node.js `dns` module):
@@ -246,16 +264,8 @@ src/
 
 ## Phase 6: Advanced Features
 
-### 6.1 Performance & Signals
-- [ ] Create `src/components/PerformanceSignals.tsx`
-- [ ] Display:
-  - Response timing breakdown
-  - Resource hints found (preload, prefetch, preconnect)
-  - Lazy loading indicators
-  - Critical CSS hints
-  - Web Vitals hints (if detectable)
+### 6.1 History & Evolution
 
-### 6.2 History & Evolution
 - [x] Create `src/components/HistoryEvolution.tsx`
 - [x] Wayback Machine API integration:
   - First capture date
@@ -264,7 +274,8 @@ src/
   - Link to browse history
 - [x] Show timeline if available
 
-### 6.3 Data Feeds & API
+### 6.2 Data Feeds & API
+
 - [x] Create `src/components/DataFeedsAPI.tsx`
 - [x] Extract and display:
   - RSS/Atom feed previews (title, item count)
@@ -278,6 +289,7 @@ src/
 ## Phase 7: Polish
 
 ### 7.1 Error Handling
+
 - [ ] Graceful handling of:
   - Network timeouts
   - Invalid URLs
@@ -287,11 +299,13 @@ src/
 - [ ] Show appropriate error messages with retry options
 
 ### 7.2 Loading States
+
 - [ ] Skeleton loading for each category
 - [ ] Progressive loading (show data as it arrives)
 - [ ] Loading indicators in accessories
 
 ### 7.3 Visual Polish
+
 - [ ] Consistent icons for each category
 - [ ] Color-coded status tags
 - [ ] Proper separators in metadata
@@ -303,7 +317,7 @@ src/
 ## Data Categories Summary
 
 | Category | Icon | Key Data |
-|----------|------|----------|
+| -------- | ---- | -------- |
 | Overview | 🌐 | Status, URL, timing, favicon |
 | Metadata & Semantics | 📝 | Title, description, OG, Twitter, JSON-LD |
 | Discoverability | 🔍 | robots.txt, sitemap.xml, meta robots |
@@ -319,6 +333,7 @@ src/
 ## Dependencies
 
 Already in `package.json`:
+
 - `@raycast/api` - Core Raycast API
 - `@raycast/utils` - Utilities including `getFavicon`
 - `cheerio` - HTML parsing

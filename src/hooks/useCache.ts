@@ -1,10 +1,7 @@
 import { LocalStorage } from "@raycast/api";
 import { CacheEntry, DiggerResult } from "../types";
 import { getCacheKey } from "../utils/urlUtils";
-
-const CACHE_DURATION = 48 * 60 * 60 * 1000;
-const MAX_CACHE_ENTRIES = 50;
-const CACHE_INDEX_KEY = "digger_cache_index";
+import { CACHE } from "../utils/config";
 
 interface CacheIndex {
   keys: string[];
@@ -12,7 +9,7 @@ interface CacheIndex {
 }
 
 async function getCacheIndex(): Promise<CacheIndex> {
-  const indexStr = await LocalStorage.getItem<string>(CACHE_INDEX_KEY);
+  const indexStr = await LocalStorage.getItem<string>(CACHE.INDEX_KEY);
   if (!indexStr) {
     return { keys: [], lastAccessed: {} };
   }
@@ -20,13 +17,13 @@ async function getCacheIndex(): Promise<CacheIndex> {
 }
 
 async function saveCacheIndex(index: CacheIndex): Promise<void> {
-  await LocalStorage.setItem(CACHE_INDEX_KEY, JSON.stringify(index));
+  await LocalStorage.setItem(CACHE.INDEX_KEY, JSON.stringify(index));
 }
 
 async function evictLRU(): Promise<void> {
   const index = await getCacheIndex();
 
-  if (index.keys.length >= MAX_CACHE_ENTRIES) {
+  if (index.keys.length >= CACHE.MAX_ENTRIES) {
     const sortedKeys = index.keys.sort((a, b) => {
       const aAccessed = index.lastAccessed[a] || 0;
       const bAccessed = index.lastAccessed[b] || 0;
@@ -55,7 +52,7 @@ export function useCache() {
     const entry: CacheEntry = JSON.parse(cached);
     const now = Date.now();
 
-    if (now - entry.timestamp > CACHE_DURATION) {
+    if (now - entry.timestamp > CACHE.DURATION_MS) {
       await LocalStorage.removeItem(cacheKey);
       return null;
     }
@@ -100,7 +97,7 @@ export function useCache() {
       await LocalStorage.removeItem(key);
     }
 
-    await LocalStorage.removeItem(CACHE_INDEX_KEY);
+    await LocalStorage.removeItem(CACHE.INDEX_KEY);
   };
 
   const refreshEntry = async (url: string): Promise<void> => {

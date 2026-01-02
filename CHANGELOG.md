@@ -1,3 +1,3 @@
-# Web Dig Changelog
+# Digger Changelog
 
 ## [Initial Version] - {PR_MERGE_DATE}

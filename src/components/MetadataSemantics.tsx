@@ -1,88 +1,159 @@
 import { List, Icon, Color } from "@raycast/api";
+import { getProgressIcon } from "@raycast/utils";
 import { DiggerResult } from "../types";
 import { Actions } from "../actions";
+import { truncateText } from "../utils/formatters";
+import { isUrl, resolveUrl } from "../utils/urlUtils";
 
 interface MetadataSemanticsProps {
-  data: DiggerResult;
+  data: DiggerResult | null;
   onRefresh: () => void;
+  progress: number;
 }
 
-export function MetadataSemantics({ data, onRefresh }: MetadataSemanticsProps) {
-  const { overview, metadata, discoverability } = data;
+export function MetadataSemantics({ data, onRefresh, progress }: MetadataSemanticsProps) {
+  // Show progress icon until this section is complete
+  const isLoading = progress < 1;
 
-  const hasOpenGraph = metadata?.openGraph && Object.keys(metadata.openGraph).length > 0;
-  const hasTwitterCard = metadata?.twitterCard && Object.keys(metadata.twitterCard).length > 0;
-  const hasJsonLd = metadata?.jsonLd && metadata.jsonLd.length > 0;
+  if (!data) {
+    return (
+      <List.Item
+        title="Metadata"
+        icon={isLoading ? getProgressIcon(progress, Color.Blue) : Icon.Document}
+        detail={
+          <List.Item.Detail
+            metadata={
+              <List.Item.Detail.Metadata>
+                <List.Item.Detail.Metadata.Label title="Analyzing metadata..." />
+                <List.Item.Detail.Metadata.Label title="" text="Parsing Open Graph, Twitter Cards, and JSON-LD" />
+              </List.Item.Detail.Metadata>
+            }
+          />
+        }
+      />
+    );
+  }
 
-  const openGraphSection = hasOpenGraph
-    ? Object.entries(metadata.openGraph!)
-        .map(([key, value]) => `- **${key}**: ${value}`)
-        .join("\n")
-    : "*No Open Graph tags found*";
+  const { overview, metadata } = data;
 
-  const twitterCardSection = hasTwitterCard
-    ? Object.entries(metadata.twitterCard!)
-        .map(([key, value]) => `- **${key}**: ${value}`)
-        .join("\n")
-    : "*No Twitter Card tags found*";
+  const hasOpenGraph = !!(metadata?.openGraph && Object.keys(metadata.openGraph).length > 0);
+  const hasTwitterCard = !!(metadata?.twitterCard && Object.keys(metadata.twitterCard).length > 0);
+  const hasMetadata = hasOpenGraph || hasTwitterCard || !!overview?.title;
 
-  const jsonLdSection = hasJsonLd
-    ? metadata
-        .jsonLd!.map((item, index) => {
-          return `### JSON-LD ${index + 1}\n\`\`\`json\n${JSON.stringify(item, null, 2)}\n\`\`\``;
-        })
-        .join("\n\n")
-    : "*No JSON-LD structured data found*";
-
-  const markdown = `
-# Metadata & Semantics
-
-## Basic Metadata
-
-- **Title**: ${overview?.title || "N/A"} ${overview?.title ? "✓" : "✗"}
-- **Description**: ${overview?.description || "N/A"} ${overview?.description ? "✓" : "✗"}
-- **Canonical URL**: ${discoverability?.canonical || "N/A"} ${discoverability?.canonical ? "✓" : "✗"}
-- **Language**: ${overview?.language || "N/A"} ${overview?.language ? "✓" : "✗"}
-
----
-
-## Open Graph ${hasOpenGraph ? "✓" : "✗"}
-
-${openGraphSection}
-
----
-
-## Twitter Card ${hasTwitterCard ? "✓" : "✗"}
-
-${twitterCardSection}
-
----
-
-## Structured Data (JSON-LD) ${hasJsonLd ? "✓" : "✗"}
-
-${jsonLdSection}
-  `.trim();
-
-  const getStatusIcon = (hasData: boolean) => {
-    return hasData ? { source: Icon.Check, tintColor: Color.Green } : { source: Icon.Xmark, tintColor: Color.Red };
-  };
-
-  const subtitle = [
-    hasOpenGraph && "OG",
-    hasTwitterCard && "Twitter",
-    hasJsonLd && "JSON-LD",
-    overview?.title && "Title",
-  ]
-    .filter(Boolean)
-    .join(", ");
+  // Show progress icon while loading, then show document icon (not check/x)
+  const listIcon = isLoading ? getProgressIcon(progress, Color.Blue) : Icon.Document;
 
   return (
     <List.Item
-      title="Metadata & Semantics"
-      subtitle={subtitle || "No metadata found"}
-      icon={getStatusIcon(hasOpenGraph || hasTwitterCard || hasJsonLd || !!overview?.title)}
-      detail={<List.Item.Detail markdown={markdown} />}
+      title="Metadata"
+      icon={listIcon}
+      accessories={hasMetadata ? [{ icon: { source: Icon.Check, tintColor: Color.Green } }] : undefined}
+      detail={<MetadataSemanticsDetail data={data} hasOpenGraph={hasOpenGraph} hasTwitterCard={hasTwitterCard} />}
       actions={<Actions data={data} url={data.url} onRefresh={onRefresh} />}
+    />
+  );
+}
+
+interface MetadataSemanticsDetailProps {
+  data: DiggerResult;
+  hasOpenGraph: boolean;
+  hasTwitterCard: boolean;
+}
+
+function MetadataSemanticsDetail({ data, hasOpenGraph, hasTwitterCard }: MetadataSemanticsDetailProps) {
+  const { overview, metadata, discoverability, url } = data;
+
+  const isImageField = (key: string) => key.toLowerCase().includes("image");
+
+  const renderMetadataItem = (key: string, value: string) => {
+    if (isImageField(key)) {
+      const absoluteUrl = resolveUrl(value, url);
+      return <List.Item.Detail.Metadata.Link key={key} title={key} target={absoluteUrl} text={truncateText(value, 60)} />;
+    }
+    return isUrl(value) ? (
+      <List.Item.Detail.Metadata.Link key={key} title={key} target={value} text={truncateText(value, 60)} />
+    ) : (
+      <List.Item.Detail.Metadata.Label key={key} title={key} text={truncateText(value, 60)} />
+    );
+  };
+
+  return (
+    <List.Item.Detail
+      metadata={
+        <List.Item.Detail.Metadata>
+          <List.Item.Detail.Metadata.Label title="Basic Metadata" />
+          <List.Item.Detail.Metadata.Label
+            title="Title"
+            text={overview?.title || "N/A"}
+            icon={
+              overview?.title
+                ? { source: Icon.Check, tintColor: Color.Green }
+                : { source: Icon.Xmark, tintColor: Color.Red }
+            }
+          />
+          <List.Item.Detail.Metadata.Label
+            title="Description"
+            text={overview?.description ? truncateText(overview.description, 80) : "N/A"}
+            icon={
+              overview?.description
+                ? { source: Icon.Check, tintColor: Color.Green }
+                : { source: Icon.Xmark, tintColor: Color.Red }
+            }
+          />
+          {discoverability?.canonical ? (
+            <List.Item.Detail.Metadata.Link
+              title="Canonical URL"
+              target={discoverability.canonical}
+              text={truncateText(discoverability.canonical, 60)}
+            />
+          ) : (
+            <List.Item.Detail.Metadata.Label
+              title="Canonical URL"
+              text="N/A"
+              icon={{ source: Icon.Xmark, tintColor: Color.Red }}
+            />
+          )}
+          <List.Item.Detail.Metadata.Label
+            title="Language"
+            text={overview?.language || "N/A"}
+            icon={
+              overview?.language
+                ? { source: Icon.Check, tintColor: Color.Green }
+                : { source: Icon.Xmark, tintColor: Color.Red }
+            }
+          />
+
+          <List.Item.Detail.Metadata.Separator />
+          <List.Item.Detail.Metadata.Label
+            title="Open Graph"
+            icon={
+              hasOpenGraph
+                ? { source: Icon.Check, tintColor: Color.Green }
+                : { source: Icon.Xmark, tintColor: Color.Red }
+            }
+          />
+          {hasOpenGraph &&
+            Object.entries(metadata!.openGraph!)
+              .slice(0, 6)
+              .map(([key, value]) => renderMetadataItem(key, value))}
+          {!hasOpenGraph && <List.Item.Detail.Metadata.Label title="" text="No Open Graph tags found" />}
+
+          <List.Item.Detail.Metadata.Separator />
+          <List.Item.Detail.Metadata.Label
+            title="Twitter Card"
+            icon={
+              hasTwitterCard
+                ? { source: Icon.Check, tintColor: Color.Green }
+                : { source: Icon.Xmark, tintColor: Color.Red }
+            }
+          />
+          {hasTwitterCard &&
+            Object.entries(metadata!.twitterCard!)
+              .slice(0, 6)
+              .map(([key, value]) => renderMetadataItem(key, value))}
+          {!hasTwitterCard && <List.Item.Detail.Metadata.Label title="" text="No Twitter Card tags found" />}
+        </List.Item.Detail.Metadata>
+      }
     />
   );
 }

@@ -1,107 +1,192 @@
 import { useState, useCallback } from "react";
-import { showToast, Toast } from "@raycast/api";
-import { fetchWithTimeout } from "../utils/fetcher";
-import { normalizeUrl } from "../utils/urlUtils";
-import { useCache } from "./useCache";
-import { DiggerResult, OverviewData, MetadataData, DiscoverabilityData, HistoryData } from "../types";
-import { performDNSLookup, getTLSCertificateInfo, CertificateInfo } from "../utils/dnsUtils";
 import * as cheerio from "cheerio";
+import { showToast, Toast } from "@raycast/api";
+import { fetchHeadOnlyWithFallback, fetchWithTimeout } from "../utils/fetcher";
+import { normalizeUrl, getRootResourceUrl } from "../utils/urlUtils";
+import { fetchWaybackMachineData } from "../utils/waybackUtils";
+import { fetchHostMetadata } from "../utils/hostMetaUtils";
+import { useCache } from "./useCache";
+import { DiggerResult, OverviewData, MetadataData, DiscoverabilityData } from "../types";
+import { performDNSLookup, getTLSCertificateInfo, CertificateInfo } from "../utils/dnsUtils";
+import { getLogger } from "../utils/logger";
 
-async function fetchWaybackMachineData(url: string): Promise<HistoryData | undefined> {
-  try {
-    const apiUrl = `https://archive.org/wayback/available?url=${encodeURIComponent(url)}`;
-    const response = await fetch(apiUrl);
-    
-    if (!response.ok) {
-      return undefined;
-    }
+const log = getLogger("fetch");
 
-    const data = (await response.json()) as {
-      archived_snapshots?: {
-        closest?: {
-          timestamp?: string;
-          url?: string;
-        };
-      };
-    };
-    
-    if (!data.archived_snapshots?.closest) {
-      return undefined;
-    }
-
-    const snapshot = data.archived_snapshots.closest;
-    
-    // Get additional snapshot count from CDX API
-    const cdxUrl = `https://web.archive.org/cdx/search/cdx?url=${encodeURIComponent(url)}&output=json&limit=1&fl=timestamp&collapse=timestamp:8`;
-    const cdxResponse = await fetch(cdxUrl);
-    
-    let snapshotCount = 0;
-    if (cdxResponse.ok) {
-      const cdxData = await cdxResponse.json();
-      snapshotCount = Array.isArray(cdxData) ? Math.max(0, cdxData.length - 1) : 0;
-    }
-
-    return {
-      waybackMachineSnapshots: snapshotCount,
-      firstSeen: snapshot.timestamp ? formatWaybackDate(snapshot.timestamp) : undefined,
-      lastSeen: snapshot.timestamp ? formatWaybackDate(snapshot.timestamp) : undefined,
-      archiveUrl: `https://web.archive.org/web/*/${url}`,
-    };
-  } catch {
-    return undefined;
-  }
+export interface LoadingProgress {
+  overview: number;
+  metadata: number;
+  discoverability: number;
+  resources: number;
+  networking: number;
+  dns: number;
+  history: number;
+  dataFeeds: number;
 }
 
-function formatWaybackDate(timestamp: string): string {
-  // Wayback timestamps are in format: YYYYMMDDhhmmss
-  const year = timestamp.substring(0, 4);
-  const month = timestamp.substring(4, 6);
-  const day = timestamp.substring(6, 8);
-  return `${year}-${month}-${day}`;
-}
+const initialProgress: LoadingProgress = {
+  overview: 0,
+  metadata: 0,
+  discoverability: 0,
+  resources: 0,
+  networking: 0,
+  dns: 0,
+  history: 0,
+  dataFeeds: 0,
+};
 
 export function useFetchSite(url?: string) {
   const [data, setData] = useState<DiggerResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [certificateInfo, setCertificateInfo] = useState<CertificateInfo | null>(null);
+  const [progress, setProgress] = useState<LoadingProgress>(initialProgress);
   const { getFromCache, saveToCache } = useCache();
 
   const fetchSite = useCallback(
     async (targetUrl: string) => {
+      log.log("fetch:start", { targetUrl });
       setIsLoading(true);
       setError(null);
+      setProgress(initialProgress);
+
+      // Create an AbortController to cancel async operations if main fetch fails
+      const abortController = new AbortController();
+
+      // Helper to update progress for a specific category
+      const updateProgress = (category: keyof LoadingProgress, value: number) => {
+        setProgress((prev) => ({ ...prev, [category]: value }));
+      };
+
+      // Start all categories at initial loading state (0.1 = started)
+      setProgress({
+        overview: 0.1,
+        metadata: 0.1,
+        discoverability: 0.1,
+        resources: 0.1,
+        networking: 0.1,
+        dns: 0.1,
+        history: 0.1,
+        dataFeeds: 0.1,
+      });
+
+      // Helper to update data progressively
+      const updateData = (partial: Partial<DiggerResult>) => {
+        setData((prev) => (prev ? { ...prev, ...partial } : (partial as DiggerResult)));
+      };
 
       try {
         const normalizedUrl = normalizeUrl(targetUrl);
+        log.log("fetch:normalized", { normalizedUrl });
 
         const cached = await getFromCache(normalizedUrl);
         if (cached) {
+          log.log("cache:hit", { url: normalizedUrl });
           setData(cached);
+          setProgress({
+            overview: 1,
+            metadata: 1,
+            discoverability: 1,
+            resources: 1,
+            networking: 1,
+            dns: 1,
+            history: 1,
+            dataFeeds: 1,
+          });
           setIsLoading(false);
           return;
         }
+        log.log("cache:miss", { url: normalizedUrl });
 
+        // Initialize data with URL immediately
+        setData({ url: normalizedUrl, fetchedAt: Date.now() } as DiggerResult);
+
+        log.log("fetch:resources", { url: normalizedUrl });
+        // Update networking progress - fetching started
+        updateProgress("networking", 0.3);
+
+        // Start async fetches for DNS, Wayback, etc. early (don't await yet)
+        const urlObj = new URL(normalizedUrl);
+        const hostname = urlObj.hostname;
+
+        // Start these in parallel immediately - they're independent of HTML parsing
+        updateProgress("dns", 0.3);
+        updateProgress("history", 0.3);
+        
+        // Wrap async operations to check abort signal
+        const dnsPromise = new Promise<Awaited<ReturnType<typeof performDNSLookup>> | undefined>((resolve) => {
+          if (abortController.signal.aborted) return resolve(undefined);
+          performDNSLookup(hostname).then(resolve).catch(() => resolve(undefined));
+          abortController.signal.addEventListener("abort", () => resolve(undefined));
+        });
+        
+        const certPromise = new Promise<CertificateInfo | null>((resolve) => {
+          if (abortController.signal.aborted) return resolve(null);
+          getTLSCertificateInfo(hostname).then(resolve).catch(() => resolve(null));
+          abortController.signal.addEventListener("abort", () => resolve(null));
+        });
+        
+        const waybackPromise = new Promise<Awaited<ReturnType<typeof fetchWaybackMachineData>> | undefined>((resolve) => {
+          if (abortController.signal.aborted) return resolve(undefined);
+          fetchWaybackMachineData(normalizedUrl).then(resolve).catch(() => resolve(undefined));
+          abortController.signal.addEventListener("abort", () => resolve(undefined));
+        });
+        
+        const hostMetaPromise = new Promise<Awaited<ReturnType<typeof fetchHostMetadata>> | undefined>((resolve) => {
+          if (abortController.signal.aborted) return resolve(undefined);
+          fetchHostMetadata(normalizedUrl).then(resolve).catch(() => resolve(undefined));
+          abortController.signal.addEventListener("abort", () => resolve(undefined));
+        });
+
+        // Use streaming fetch for main HTML to avoid memory issues on large pages
+        // Use getRootResourceUrl to ensure robots.txt and sitemap.xml are fetched from the domain root
+        const robotsUrl = getRootResourceUrl("robots.txt", normalizedUrl);
+        const sitemapUrl = getRootResourceUrl("sitemap.xml", normalizedUrl);
         const [htmlResult, , sitemapResult] = await Promise.allSettled([
-          fetchWithTimeout(normalizedUrl),
-          fetchWithTimeout(`${normalizedUrl}/robots.txt`).catch(() => null),
-          fetchWithTimeout(`${normalizedUrl}/sitemap.xml`).catch(() => null),
+          fetchHeadOnlyWithFallback(normalizedUrl),
+          robotsUrl ? fetchWithTimeout(robotsUrl).catch(() => null) : Promise.resolve(null),
+          sitemapUrl ? fetchWithTimeout(sitemapUrl).catch(() => null) : Promise.resolve(null),
         ]);
 
         if (htmlResult.status === "rejected") {
+          log.error("fetch:failed", { url: normalizedUrl, error: htmlResult.reason });
+          // Cancel all pending async operations
+          abortController.abort();
+          log.log("fetch:aborted-async-operations", { reason: "main fetch failed" });
           throw new Error("Failed to fetch website");
         }
 
-        const { response, status, headers, timing, finalUrl } = htmlResult.value;
-        const fullHtml = await response.text();
-        
-        // Extract only <head> content to reduce memory usage on large pages
-        const headMatch = fullHtml.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
-        const headHtml = headMatch ? `<html><head>${headMatch[1]}</head></html>` : fullHtml.slice(0, 50000);
-        const $ = cheerio.load(headHtml);
-        
-        // Get language from html tag in full HTML (it's at the start, so cheap to extract)
-        const langMatch = fullHtml.match(/<html[^>]*\slang=["']([^"']+)["']/i);
+        const { headHtml: streamedHtml, status, headers, timing, finalUrl, truncated } = htmlResult.value;
+        log.log("fetch:response", { status, finalUrl, timing, truncated, htmlLength: streamedHtml.length });
+
+        // Networking data is now available - update immediately
+        updateProgress("networking", 1);
+        updateData({
+          networking: {
+            statusCode: status,
+            headers,
+            finalUrl,
+            server: headers.server,
+          },
+          performance: {
+            loadTime: timing,
+            pageSize: streamedHtml.length,
+          },
+        });
+
+        log.log("parse:start", { htmlLength: streamedHtml.length, truncated });
+
+        // Update progress - HTML parsing started
+        updateProgress("overview", 0.5);
+        updateProgress("metadata", 0.3);
+        updateProgress("discoverability", 0.3);
+        updateProgress("resources", 0.3);
+        updateProgress("dataFeeds", 0.3);
+
+        // Parse the streamed HTML (already limited to head content)
+        const $ = cheerio.load(streamedHtml);
+
+        // Get language from html tag (it's at the start of the streamed content)
+        const langMatch = streamedHtml.match(/<html[^>]*\slang=["']([^"']+)["']/i);
 
         const overview: OverviewData = {
           title: $("title").text() || undefined,
@@ -109,6 +194,11 @@ export function useFetchSite(url?: string) {
           language: langMatch?.[1],
           charset: $("meta[charset]").attr("charset") || undefined,
         };
+        log.log("parse:overview", { title: overview.title, language: overview.language });
+
+        // Overview parsing complete - update immediately
+        updateProgress("overview", 1);
+        updateData({ overview });
 
         const openGraph: Record<string, string> = {};
         $('meta[property^="og:"]').each((_, el) => {
@@ -159,12 +249,23 @@ export function useFetchSite(url?: string) {
           jsonLd: jsonLdScripts.length > 0 ? jsonLdScripts : undefined,
           metaTags: metaTags.length > 0 ? metaTags : undefined,
         };
+        log.log("parse:metadata", {
+          ogTags: Object.keys(openGraph).length,
+          twitterTags: Object.keys(twitterCard).length,
+          jsonLdScripts: jsonLdScripts.length,
+          metaTags: metaTags.length,
+        });
+
+        // Metadata parsing complete - update immediately
+        updateProgress("metadata", 1);
+        updateProgress("dataFeeds", 0.5);
+        updateData({ metadata });
 
         const discoverability: DiscoverabilityData = {
           robots: $('meta[name="robots"]').attr("content"),
           canonical: $('link[rel="canonical"]').attr("href"),
           sitemap:
-            sitemapResult.status === "fulfilled" && sitemapResult.value ? `${normalizedUrl}/sitemap.xml` : undefined,
+            sitemapResult.status === "fulfilled" && sitemapResult.value ? sitemapUrl : undefined,
         };
 
         const alternates: Array<{ href: string; hreflang?: string; type?: string }> = [];
@@ -187,56 +288,65 @@ export function useFetchSite(url?: string) {
           discoverability.rss = rssLink;
         }
 
+        // Discoverability parsing complete - update immediately
+        updateProgress("discoverability", 1);
+        updateData({ discoverability });
+
         const MAX_RESOURCES = 50; // Limit to prevent memory issues on large sites
 
         const stylesheets: Array<{ href: string; media?: string }> = [];
-        $('link[rel="stylesheet"]').slice(0, MAX_RESOURCES).each((_, el) => {
-          const href = $(el).attr("href");
-          if (href) {
-            stylesheets.push({
-              href,
-              media: $(el).attr("media"),
-            });
-          }
-        });
+        $('link[rel="stylesheet"]')
+          .slice(0, MAX_RESOURCES)
+          .each((_, el) => {
+            const href = $(el).attr("href");
+            if (href) {
+              stylesheets.push({
+                href,
+                media: $(el).attr("media"),
+              });
+            }
+          });
 
         const scripts: Array<{ src: string; async?: boolean; defer?: boolean; type?: string }> = [];
-        $("script[src]").slice(0, MAX_RESOURCES).each((_, el) => {
-          const src = $(el).attr("src");
-          if (src) {
-            scripts.push({
-              src,
-              async: $(el).attr("async") !== undefined,
-              defer: $(el).attr("defer") !== undefined,
-              type: $(el).attr("type"),
-            });
-          }
-        });
+        $("script[src]")
+          .slice(0, MAX_RESOURCES)
+          .each((_, el) => {
+            const src = $(el).attr("src");
+            if (src) {
+              scripts.push({
+                src,
+                async: $(el).attr("async") !== undefined,
+                defer: $(el).attr("defer") !== undefined,
+                type: $(el).attr("type"),
+              });
+            }
+          });
 
         const images: Array<{ src: string; alt?: string }> = [];
-        $("img[src]").slice(0, MAX_RESOURCES).each((_, el) => {
-          const src = $(el).attr("src");
-          if (src) {
-            images.push({
-              src,
-              alt: $(el).attr("alt"),
-            });
-          }
-        });
+        $("img[src]")
+          .slice(0, MAX_RESOURCES)
+          .each((_, el) => {
+            const src = $(el).attr("src");
+            if (src) {
+              images.push({
+                src,
+                alt: $(el).attr("alt"),
+              });
+            }
+          });
 
         const links: Array<{ href: string; rel?: string }> = [];
-        $('link[rel]:not([rel="stylesheet"]):not([rel="alternate"])').slice(0, MAX_RESOURCES).each((_, el) => {
-          const href = $(el).attr("href");
-          if (href) {
-            links.push({
-              href,
-              rel: $(el).attr("rel"),
-            });
-          }
-        });
-
-        const urlObj = new URL(normalizedUrl);
-        const hostname = urlObj.hostname;
+        $('link[rel]:not([rel="stylesheet"]):not([rel="alternate"])')
+          .slice(0, MAX_RESOURCES)
+          .each((_, el) => {
+            const href = $(el).attr("href");
+            if (href) {
+              links.push({
+                href,
+                rel: $(el).attr("rel"),
+              });
+            }
+          });
 
         // Extract feed URLs
         const rssFeeds: Array<{ url: string; title?: string }> = [];
@@ -267,16 +377,97 @@ export function useFetchSite(url?: string) {
           }
         });
 
-        const [dnsData, certInfo, waybackData] = await Promise.all([
-          performDNSLookup(hostname).catch(() => undefined),
-          getTLSCertificateInfo(hostname).catch(() => null),
-          fetchWaybackMachineData(normalizedUrl).catch(() => undefined),
+        // Resources and data feeds parsing complete - update immediately
+        updateProgress("resources", 1);
+        updateProgress("dataFeeds", 1);
+        updateData({
+          resources: {
+            stylesheets: stylesheets.length > 0 ? stylesheets : undefined,
+            scripts: scripts.length > 0 ? scripts : undefined,
+            images: images.length > 0 ? images : undefined,
+            links: links.length > 0 ? links : undefined,
+          },
+          dataFeeds:
+            rssFeeds.length > 0 || atomFeeds.length > 0 || jsonFeeds.length > 0
+              ? {
+                  rss: rssFeeds.length > 0 ? rssFeeds : undefined,
+                  atom: atomFeeds.length > 0 ? atomFeeds : undefined,
+                  json: jsonFeeds.length > 0 ? jsonFeeds : undefined,
+                }
+              : undefined,
+        });
+
+        log.log("fetch:awaiting-async-fetches", { hostname });
+
+        // Now await the async fetches that were started earlier
+        // Handle each one individually so they update as they complete
+        dnsPromise.then((dnsData) => {
+          log.log("fetch:dns-complete", { hasDns: !!dnsData });
+          updateProgress("dns", 1);
+          updateData({ dns: dnsData });
+        });
+
+        certPromise.then((certInfo) => {
+          log.log("fetch:cert-complete", { hasCert: !!certInfo });
+          if (certInfo) {
+            setCertificateInfo(certInfo);
+          }
+        });
+
+        waybackPromise.then((waybackData) => {
+          log.log("fetch:wayback-complete", { hasWayback: !!waybackData, rateLimited: waybackData?.rateLimited });
+          updateProgress("history", 1);
+          // Only update if we got good data, or if there's no existing data
+          // Don't overwrite good cached data with rate-limited empty data
+          if (waybackData && !waybackData.rateLimited) {
+            updateData({ history: waybackData });
+          } else if (waybackData?.rateLimited) {
+            // If rate limited, update to show the rate limit status but preserve any existing snapshot data
+            setData((prev) => {
+              if (prev?.history?.waybackMachineSnapshots && prev.history.waybackMachineSnapshots > 0) {
+                // Keep existing good data, just add rate limited flag
+                return { ...prev, history: { ...prev.history, rateLimited: true } };
+              }
+              // No existing good data, show rate limited state
+              return prev ? { ...prev, history: waybackData } : prev;
+            });
+          }
+        });
+
+        hostMetaPromise.then((hostMetadata) => {
+          log.log("fetch:hostmeta-complete", { hasHostMeta: !!hostMetadata?.available });
+          updateData({ hostMetadata });
+        });
+
+        // Wait for all async fetches to complete before caching
+        const [dnsData, certInfo, waybackData, hostMetadata] = await Promise.all([
+          dnsPromise,
+          certPromise,
+          waybackPromise,
+          hostMetaPromise,
         ]);
 
-        if (certInfo) {
-          setCertificateInfo(certInfo);
+        log.log("fetch:all-async-complete", {
+          hasDns: !!dnsData,
+          hasCert: !!certInfo,
+          hasWayback: !!waybackData,
+          hasHostMeta: !!hostMetadata?.available,
+          waybackRateLimited: waybackData?.rateLimited,
+        });
+
+        // Determine final history data - don't cache rate-limited empty data over good data
+        let finalHistoryData = waybackData;
+        if (waybackData?.rateLimited && (!waybackData.waybackMachineSnapshots || waybackData.waybackMachineSnapshots === 0)) {
+          // Rate limited with no data - check if we have existing good data in state
+          const currentData = data;
+          if (currentData?.history?.waybackMachineSnapshots && currentData.history.waybackMachineSnapshots > 0) {
+            // Preserve existing good data, just mark as rate limited
+            finalHistoryData = { ...currentData.history, rateLimited: true };
+            log.log("fetch:wayback-preserving-cached", { existingSnapshots: currentData.history.waybackMachineSnapshots });
+          }
         }
 
+        // Build final result for caching
         const result: DiggerResult = {
           url: normalizedUrl,
           overview,
@@ -297,9 +488,9 @@ export function useFetchSite(url?: string) {
           dns: dnsData,
           performance: {
             loadTime: timing,
-            pageSize: fullHtml.length,
+            pageSize: streamedHtml.length,
           },
-          history: waybackData,
+          history: finalHistoryData,
           dataFeeds:
             rssFeeds.length > 0 || atomFeeds.length > 0 || jsonFeeds.length > 0
               ? {
@@ -308,13 +499,19 @@ export function useFetchSite(url?: string) {
                   json: jsonFeeds.length > 0 ? jsonFeeds : undefined,
                 }
               : undefined,
+          hostMetadata,
           fetchedAt: Date.now(),
         };
 
+        // Final update and cache
         setData(result);
         await saveToCache(normalizedUrl, result);
+        log.log("fetch:complete", { url: normalizedUrl });
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Failed to fetch site data";
+        log.error("fetch:error", { error: errorMessage });
+        // Ensure async operations are cancelled on any error
+        abortController.abort();
         setError(errorMessage);
         await showToast({
           style: Toast.Style.Failure,
@@ -334,5 +531,5 @@ export function useFetchSite(url?: string) {
     }
   }, [url, fetchSite]);
 
-  return { data, isLoading, error, refetch, fetchSite, certificateInfo };
+  return { data, isLoading, error, refetch, fetchSite, certificateInfo, progress };
 }

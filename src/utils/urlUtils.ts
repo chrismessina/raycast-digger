@@ -34,6 +34,15 @@ export function validateUrl(url: string): boolean {
 }
 
 /**
+ * Check if a string value is a URL (starts with http:// or https://).
+ * @param {string} value The value to check.
+ * @returns {boolean} true if the value is a URL, false otherwise.
+ */
+export function isUrl(value: string): boolean {
+  return value.startsWith("http://") || value.startsWith("https://");
+}
+
+/**
  * Returns the domain name of a given URL.
  * If the URL is invalid, an empty string is returned.
  * @param {string} url The URL to get the domain name from.
@@ -57,4 +66,35 @@ export function getDomain(url: string): string {
 export function getCacheKey(url: string): string {
   const normalized = normalizeUrl(url);
   return `digger_cache_${normalized}`;
+}
+
+/**
+ * Resolves a potentially relative URL to an absolute URL using a base URL.
+ * @param {string} url The URL to resolve (can be relative or absolute).
+ * @param {string} baseUrl The base URL to resolve against.
+ * @returns {string} The absolute URL.
+ */
+export function resolveUrl(url: string, baseUrl: string): string {
+  try {
+    return new URL(url, baseUrl).href;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Constructs a URL for a root-level resource (e.g., robots.txt, sitemap.xml, favicon.ico).
+ * Uses the origin (scheme + host) of the base URL, ignoring any path.
+ * @param {string} resourcePath The resource path (e.g., "/robots.txt" or "robots.txt").
+ * @param {string} baseUrl The base URL to extract the origin from.
+ * @returns {string | undefined} The absolute URL to the root resource, or undefined if invalid.
+ */
+export function getRootResourceUrl(resourcePath: string, baseUrl: string): string | undefined {
+  try {
+    const urlObj = new URL(baseUrl);
+    const normalizedPath = resourcePath.startsWith("/") ? resourcePath : `/${resourcePath}`;
+    return `${urlObj.origin}${normalizedPath}`;
+  } catch {
+    return undefined;
+  }
 }

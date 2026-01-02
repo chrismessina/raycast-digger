@@ -1,162 +1,56 @@
 import { List, Icon, Color } from "@raycast/api";
+import { getProgressIcon } from "@raycast/utils";
 import { DiggerResult } from "../types";
 import { Actions } from "../actions";
+import { truncateText } from "../utils/formatters";
 
 interface DataFeedsAPIProps {
-  data: DiggerResult;
+  data: DiggerResult | null;
   onRefresh: () => void;
+  progress: number;
 }
 
-export function DataFeedsAPI({ data, onRefresh }: DataFeedsAPIProps) {
-  const { dataFeeds, metadata, discoverability } = data;
-
-  const hasFeeds =
-    (dataFeeds?.rss && dataFeeds.rss.length > 0) ||
-    (dataFeeds?.atom && dataFeeds.atom.length > 0) ||
-    (dataFeeds?.json && dataFeeds.json.length > 0);
-
-  const hasJsonLd = !!(metadata?.jsonLd && metadata.jsonLd.length > 0);
-  const hasApiHints = discoverability?.alternates?.some((alt) => alt.type?.includes("json") || alt.type?.includes("api")) ?? false;
-
-  if (!hasFeeds && !hasJsonLd && !hasApiHints) {
+export function DataFeedsAPI({ data, onRefresh, progress }: DataFeedsAPIProps) {
+  if (!data) {
     return (
       <List.Item
         title="Data Feeds & API"
-        subtitle="No feeds or API endpoints detected"
-        icon={{ source: Icon.Code, tintColor: Color.SecondaryText }}
+        icon={progress < 1 ? getProgressIcon(progress, Color.Blue) : Icon.Plug}
         detail={
           <List.Item.Detail
-            markdown={`
-# Data Feeds & API
-
-No RSS/Atom feeds, JSON-LD data, or API endpoints were detected on this page.
-
-This site may not expose structured data feeds or public APIs.
-            `.trim()}
+            metadata={
+              <List.Item.Detail.Metadata>
+                <List.Item.Detail.Metadata.Label title="Discovering feeds..." />
+                <List.Item.Detail.Metadata.Label title="" text="Looking for RSS, Atom, and JSON feeds" />
+              </List.Item.Detail.Metadata>
+            }
           />
         }
-        actions={<Actions data={data} url={data.url} onRefresh={onRefresh} />}
       />
     );
   }
 
-  const markdown = buildMarkdown(data);
-  const subtitle = buildSubtitle(dataFeeds, hasJsonLd);
+  const { dataFeeds, metadata } = data;
+
+  const hasJsonLd = !!(metadata?.jsonLd && metadata.jsonLd.length > 0);
+
+  const feedCount = (dataFeeds?.rss?.length || 0) + (dataFeeds?.atom?.length || 0) + (dataFeeds?.json?.length || 0);
+
+  const subtitle = buildSubtitle(feedCount, hasJsonLd);
 
   return (
     <List.Item
       title="Data Feeds & API"
       subtitle={subtitle}
-      icon={{ source: Icon.Code, tintColor: Color.Green }}
-      detail={<List.Item.Detail markdown={markdown} />}
+      icon={progress < 1 ? getProgressIcon(progress, Color.Blue) : Icon.Plug}
+      detail={<DataFeedsAPIDetail data={data} hasJsonLd={hasJsonLd} />}
       actions={<Actions data={data} url={data.url} onRefresh={onRefresh} />}
     />
   );
 }
 
-function buildMarkdown(data: DiggerResult): string {
-  const { dataFeeds, metadata, discoverability } = data;
-  const sections: string[] = ["# Data Feeds & API\n"];
-
-  // RSS Feeds
-  if (dataFeeds?.rss && dataFeeds.rss.length > 0) {
-    sections.push("## RSS Feeds\n");
-    dataFeeds.rss.forEach((feed) => {
-      sections.push(`- **[${feed.title || "RSS Feed"}](${feed.url})**`);
-    });
-    sections.push("");
-  }
-
-  // Atom Feeds
-  if (dataFeeds?.atom && dataFeeds.atom.length > 0) {
-    sections.push("## Atom Feeds\n");
-    dataFeeds.atom.forEach((feed) => {
-      sections.push(`- **[${feed.title || "Atom Feed"}](${feed.url})**`);
-    });
-    sections.push("");
-  }
-
-  // JSON Feeds
-  if (dataFeeds?.json && dataFeeds.json.length > 0) {
-    sections.push("## JSON Feeds\n");
-    dataFeeds.json.forEach((feed) => {
-      sections.push(`- **[${feed.title || "JSON Feed"}](${feed.url})**`);
-    });
-    sections.push("");
-  }
-
-  // JSON-LD Structured Data
-  if (metadata?.jsonLd && metadata.jsonLd.length > 0) {
-    sections.push("## JSON-LD Structured Data\n");
-    sections.push(`Found ${metadata.jsonLd.length} JSON-LD ${metadata.jsonLd.length === 1 ? "block" : "blocks"}:\n`);
-
-    metadata.jsonLd.forEach((ld, index) => {
-      const type = ld["@type"] || "Unknown";
-      const context = ld["@context"] || "";
-
-      sections.push(`### ${index + 1}. ${Array.isArray(type) ? type.join(", ") : type}\n`);
-
-      if (context) {
-        sections.push(`- **Context**: \`${context}\``);
-      }
-
-      // Show key properties
-      const keys = Object.keys(ld).filter((k) => k !== "@type" && k !== "@context");
-      if (keys.length > 0) {
-        sections.push("- **Properties**:");
-        keys.slice(0, 5).forEach((key) => {
-          const value = ld[key];
-          const displayValue = typeof value === "string" ? value : JSON.stringify(value);
-          sections.push(`  - \`${key}\`: ${displayValue.length > 100 ? displayValue.substring(0, 100) + "..." : displayValue}`);
-        });
-        if (keys.length > 5) {
-          sections.push(`  - *...and ${keys.length - 5} more properties*`);
-        }
-      }
-      sections.push("");
-    });
-  }
-
-  // API Discovery Hints
-  const apiAlternates = discoverability?.alternates?.filter(
-    (alt) => alt.type?.includes("json") || alt.type?.includes("api")
-  );
-
-  if (apiAlternates && apiAlternates.length > 0) {
-    sections.push("## API Discovery\n");
-    apiAlternates.forEach((alt) => {
-      const label = alt.type || "API Endpoint";
-      sections.push(`- **[${label}](${alt.href})**`);
-    });
-    sections.push("");
-  }
-
-  // Check for common API patterns in links
-  const apiPatterns = ["/api/", "/graphql", "/swagger", "/openapi", "/.well-known/"];
-  const potentialApis = data.resources?.links?.filter((link) =>
-    apiPatterns.some((pattern) => link.href.toLowerCase().includes(pattern))
-  );
-
-  if (potentialApis && potentialApis.length > 0) {
-    sections.push("## Potential API Endpoints\n");
-    const uniqueUrls = [...new Set(potentialApis.map((link) => link.href))];
-    uniqueUrls.slice(0, 10).forEach((url) => {
-      const type = getApiType(url);
-      sections.push(`- **[${type}](${url})**`);
-    });
-    if (uniqueUrls.length > 10) {
-      sections.push(`\n*...and ${uniqueUrls.length - 10} more potential endpoints*`);
-    }
-  }
-
-  return sections.join("\n").trim();
-}
-
-function buildSubtitle(dataFeeds: DiggerResult["dataFeeds"], hasJsonLd: boolean): string {
+function buildSubtitle(feedCount: number, hasJsonLd: boolean): string {
   const parts: string[] = [];
-
-  const feedCount =
-    (dataFeeds?.rss?.length || 0) + (dataFeeds?.atom?.length || 0) + (dataFeeds?.json?.length || 0);
 
   if (feedCount > 0) {
     parts.push(`${feedCount} ${feedCount === 1 ? "feed" : "feeds"}`);
@@ -166,15 +60,113 @@ function buildSubtitle(dataFeeds: DiggerResult["dataFeeds"], hasJsonLd: boolean)
     parts.push("JSON-LD");
   }
 
-  return parts.join(", ") || "Available";
+  return parts.join(", ") || "No feeds or API detected";
 }
 
-function getApiType(url: string): string {
-  const lower = url.toLowerCase();
-  if (lower.includes("/graphql")) return "GraphQL Endpoint";
-  if (lower.includes("/swagger")) return "Swagger Documentation";
-  if (lower.includes("/openapi")) return "OpenAPI Specification";
-  if (lower.includes("/.well-known/")) return "Well-Known URI";
-  if (lower.includes("/api/")) return "API Endpoint";
-  return "API Resource";
+interface DataFeedsAPIDetailProps {
+  data: DiggerResult;
+  hasJsonLd: boolean;
+}
+
+function DataFeedsAPIDetail({ data, hasJsonLd }: DataFeedsAPIDetailProps) {
+  const { dataFeeds, metadata } = data;
+
+  return (
+    <List.Item.Detail
+      metadata={
+        <List.Item.Detail.Metadata>
+          <List.Item.Detail.Metadata.Label
+            title="RSS Feeds"
+            icon={
+              dataFeeds?.rss?.length
+                ? { source: Icon.Check, tintColor: Color.Green }
+                : { source: Icon.Xmark, tintColor: Color.Red }
+            }
+          />
+          {dataFeeds?.rss?.length ? (
+            dataFeeds.rss
+              .slice(0, 3)
+              .map((feed, index) => (
+                <List.Item.Detail.Metadata.Link
+                  key={index}
+                  title={feed.title || "RSS Feed"}
+                  target={feed.url}
+                  text={truncateText(feed.url, 50)}
+                />
+              ))
+          ) : (
+            <List.Item.Detail.Metadata.Label title="" text="No RSS feeds found" />
+          )}
+
+          <List.Item.Detail.Metadata.Separator />
+          <List.Item.Detail.Metadata.Label
+            title="Atom Feeds"
+            icon={
+              dataFeeds?.atom?.length
+                ? { source: Icon.Check, tintColor: Color.Green }
+                : { source: Icon.Xmark, tintColor: Color.Red }
+            }
+          />
+          {dataFeeds?.atom?.length ? (
+            dataFeeds.atom
+              .slice(0, 3)
+              .map((feed, index) => (
+                <List.Item.Detail.Metadata.Link
+                  key={index}
+                  title={feed.title || "Atom Feed"}
+                  target={feed.url}
+                  text={truncateText(feed.url, 50)}
+                />
+              ))
+          ) : (
+            <List.Item.Detail.Metadata.Label title="" text="No Atom feeds found" />
+          )}
+
+          <List.Item.Detail.Metadata.Separator />
+          <List.Item.Detail.Metadata.Label
+            title="JSON Feeds"
+            icon={
+              dataFeeds?.json?.length
+                ? { source: Icon.Check, tintColor: Color.Green }
+                : { source: Icon.Xmark, tintColor: Color.Red }
+            }
+          />
+          {dataFeeds?.json?.length ? (
+            dataFeeds.json
+              .slice(0, 3)
+              .map((feed, index) => (
+                <List.Item.Detail.Metadata.Link
+                  key={index}
+                  title={feed.title || "JSON Feed"}
+                  target={feed.url}
+                  text={truncateText(feed.url, 50)}
+                />
+              ))
+          ) : (
+            <List.Item.Detail.Metadata.Label title="" text="No JSON feeds found" />
+          )}
+
+          <List.Item.Detail.Metadata.Separator />
+          <List.Item.Detail.Metadata.Label
+            title="JSON-LD Structured Data"
+            icon={
+              hasJsonLd ? { source: Icon.Check, tintColor: Color.Green } : { source: Icon.Xmark, tintColor: Color.Red }
+            }
+          />
+          {hasJsonLd ? (
+            metadata!.jsonLd!.slice(0, 3).map((ld, index) => {
+              const type = ld["@type"] as string | string[] | undefined;
+              const typeStr = Array.isArray(type) ? type.join(", ") : type || "Unknown";
+              return <List.Item.Detail.Metadata.Label key={index} title={`Type ${index + 1}`} text={typeStr} />;
+            })
+          ) : (
+            <List.Item.Detail.Metadata.Label title="" text="No JSON-LD data found" />
+          )}
+          {hasJsonLd && metadata!.jsonLd!.length > 3 && (
+            <List.Item.Detail.Metadata.Label title="" text={`...and ${metadata!.jsonLd!.length - 3} more`} />
+          )}
+        </List.Item.Detail.Metadata>
+      }
+    />
+  );
 }

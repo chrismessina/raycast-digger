@@ -9,6 +9,7 @@ export interface DiggerResult {
   performance?: PerformanceData;
   history?: HistoryData;
   dataFeeds?: DataFeedsData;
+  hostMetadata?: HostMetadataData;
   fetchedAt: number;
 }
 
@@ -82,10 +83,25 @@ export interface HistoryData {
   firstSeen?: string;
   lastSeen?: string;
   archiveUrl?: string;
+  rateLimited?: boolean;
 }
 
 export interface DataFeedsData {
   rss?: Array<{ url: string; title?: string }>;
   atom?: Array<{ url: string; title?: string }>;
   json?: Array<{ url: string; title?: string }>;
+}
+
+// RFC 6415
+export interface HostMetadataData {
+  available: boolean;
+  properties?: Record<string, string>;
+  links?: Array<{
+    rel: string;
+    href?: string;
+    template?: string;
+    type?: string;
+    title?: string;
+  }>;
+  format?: "xrd" | "jrd";
 }
