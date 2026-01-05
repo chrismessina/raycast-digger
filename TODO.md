@@ -340,6 +340,71 @@ Expand image sources to include:
 - [x] Add `themeColor` to `ResourcesData`
 - [x] Update `ResourcesData.images` to use new `ImageAsset` type
 
+### 8.6 Fonts Collection
+
+Detect and display web fonts used by the page.
+
+**Font Sources to Detect:**
+
+- [ ] **Google Fonts** - `<link>` tags pointing to `fonts.googleapis.com` or `fonts.gstatic.com`
+- [ ] **Adobe Fonts (Typekit)** - `<link>` or `<script>` tags referencing `use.typekit.net` or `typekit.com`
+- [ ] **Font Awesome** - `<link>` tags pointing to Font Awesome CDNs
+- [ ] **Custom Fonts** - `<link rel="preload" as="font">` tags
+- [ ] **Preconnect hints** - `<link rel="preconnect">` to font providers
+
+**Implementation Tasks:**
+
+- [ ] Add `FontAsset` interface to `src/types/index.ts`:
+  - `family`: Font family name (e.g., "Roboto", "Open Sans")
+  - `provider`: Provider name (e.g., "Google Fonts", "Adobe Fonts", "Custom", "Font Awesome")
+  - `url`: Source URL
+  - `variants?`: Font variants/weights if detectable (e.g., "400", "700")
+  - `format?`: Font format if specified (e.g., "woff2", "ttf")
+- [ ] Add `fonts?: FontAsset[]` to `ResourcesData` interface
+- [ ] Create `src/utils/fontUtils.ts` with helper functions:
+  - `extractGoogleFonts(url)`: Parse Google Fonts URL to extract family names
+  - `detectFontProvider(url)`: Identify provider from URL patterns
+  - `parseFontFamily(url)`: Extract font family name from various URL formats
+- [ ] Add font detection logic in `src/hooks/useFetchSite.ts` with logging
+- [ ] Add fonts section to `src/components/ResourcesAssets.tsx`:
+  - Display font count with check/x icon
+  - Show first 5 fonts with provider labels
+  - Show "...and X more" if >5 fonts
+- [ ] Add fonts to `src/components/ResourcesListView.tsx`:
+  - Add `"fonts"` to `ResourceType` union
+  - Add `"font"` to `ResourceItem` type
+  - Add fonts processing in `buildResourceItems`
+  - Add fonts filter to dropdown (use `Icon.Text`)
+  - Update `sectionOrder` array
+
+**Display Format:**
+
+In ResourcesAssets detail panel:
+
+```text
+Fonts (3)
+✓ Google Fonts | Roboto (400, 700)
+  Google Fonts | Open Sans (300, 400)
+  Adobe Fonts | proxima-nova
+```
+
+In ResourcesListView:
+
+```text
+Section: Fonts (3)
+- Roboto
+  Subtitle: Google Fonts • 400, 700
+  Accessory: fonts.googleapis.com/...
+```
+
+**Edge Cases:**
+
+- Multiple font families from same provider
+- Font URLs without clear family names
+- Preconnect hints without actual font links
+- Duplicate fonts from different sources
+- Font Awesome icon fonts vs. text fonts
+
 ---
 
 ## Phase 7: Polish

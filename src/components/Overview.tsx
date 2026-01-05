@@ -75,20 +75,45 @@ interface OverviewDetailProps {
 }
 
 function OverviewDetail({ data, statusText, contentType, contentLength, finalUrl }: OverviewDetailProps) {
-  const { overview, networking, performance, botProtection } = data;
+  const { overview, networking, performance, botProtection, resources, metadata } = data;
   const isChallengePage = botProtection?.isChallengePage ?? false;
 
-  // Determine the title to display
-  const displayTitle = isChallengePage
+  // Get clean title/description from structured sources (OG → Twitter → JSON-LD → meta tags)
+  const ogTitle = metadata?.openGraph?.["og:title"];
+  const ogDescription = metadata?.openGraph?.["og:description"];
+  const twitterTitle = metadata?.twitterCard?.["twitter:title"];
+  const twitterDescription = metadata?.twitterCard?.["twitter:description"];
+
+  // JSON-LD often has name/description at top level
+  const jsonLdItem = metadata?.jsonLd?.[0];
+  const jsonLdTitle = jsonLdItem?.name as string | undefined;
+  const jsonLdDescription = jsonLdItem?.description as string | undefined;
+
+  // Cascade: OG → Twitter → JSON-LD → meta tags
+  const fallbackTitle = overview?.title || "Untitled";
+  const cleanTitle = isChallengePage
     ? getDeniedAccessMessage(botProtection?.provider)
-    : overview?.title || "Untitled";
+    : ogTitle || twitterTitle || jsonLdTitle || fallbackTitle;
+  const cleanDescription = ogDescription || twitterDescription || jsonLdDescription || overview?.description;
+
+  // Only show description if it's meaningfully different from title
+  const showDescription = cleanDescription && cleanDescription !== cleanTitle;
+
+  // Find the best representative image (prioritize og:image, then twitter:image)
+  const representativeImage = resources?.images?.find((img) => img.type === "og")
+    ?? resources?.images?.find((img) => img.type === "twitter")
+    ?? resources?.images?.find((img) => img.type === "json-ld");
+
+  // Build markdown with image if available
+  const markdown = representativeImage ? `![${representativeImage.alt || "Preview"}](${representativeImage.src})` : undefined;
 
   return (
     <List.Item.Detail
+      markdown={markdown}
       metadata={
         <List.Item.Detail.Metadata>
-          <List.Item.Detail.Metadata.Label title={displayTitle} />
-          {overview?.description && <List.Item.Detail.Metadata.Label title="" text={overview.description} />}
+          <List.Item.Detail.Metadata.Label title={cleanTitle} />
+          {showDescription && <List.Item.Detail.Metadata.Label title="" text={cleanDescription} />}
           <List.Item.Detail.Metadata.Separator />
           <List.Item.Detail.Metadata.Label title="Response Details" />
           <List.Item.Detail.Metadata.Label

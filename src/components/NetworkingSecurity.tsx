@@ -1,8 +1,9 @@
-import { List, Icon, Color } from "@raycast/api";
+import { List, Icon, Color, Action } from "@raycast/api";
 import { getProgressIcon } from "@raycast/utils";
 import { DiggerResult } from "../types";
 import { Actions } from "../actions";
 import { truncateText } from "../utils/formatters";
+import { HeadersListView } from "./HeadersListView";
 
 interface NetworkingSecurityProps {
   data: DiggerResult | null;
@@ -60,7 +61,18 @@ export function NetworkingSecurity({ data, onRefresh, progress }: NetworkingSecu
       title="Networking & Security"
       icon={Icon.Wifi}
       detail={<NetworkingSecurityDetail headers={headers} getHeaderValue={getHeaderValue} />}
-      actions={<Actions data={data} url={data.url} onRefresh={onRefresh} />}
+      actions={
+        <Actions
+          data={data}
+          url={data.url}
+          onRefresh={onRefresh}
+          sectionActions={
+            Object.entries(headers).length > 10 ? (
+              <Action.Push title="View All Headers" icon={Icon.List} target={<HeadersListView headers={headers} />} />
+            ) : null
+          }
+        />
+      }
     />
   );
 }

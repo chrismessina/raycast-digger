@@ -70,6 +70,30 @@ export type ImageAssetType =
   | "json-ld" // From JSON-LD structured data
   | "manifest"; // From manifest.json icons
 
+/** Font provider type indicating the source of the font */
+export type FontProvider =
+  | "google-fonts" // fonts.googleapis.com or fonts.gstatic.com
+  | "adobe-fonts" // use.typekit.net or typekit.com
+  | "font-awesome" // Font Awesome CDN
+  | "bunny-fonts" // fonts.bunny.net (privacy-focused Google Fonts alternative)
+  | "fontshare" // api.fontshare.com
+  | "fonts-com" // fast.fonts.net
+  | "custom"; // Self-hosted or other providers
+
+/** Represents a font asset found in the head of the page */
+export interface FontAsset {
+  /** Font family name (e.g., "Roboto", "Open Sans") */
+  family: string;
+  /** Provider name */
+  provider: FontProvider;
+  /** Source URL */
+  url: string;
+  /** Font variants/weights if detectable (e.g., "400", "700") */
+  variants?: string[];
+  /** Font format if specified (e.g., "woff2", "ttf") */
+  format?: string;
+}
+
 /** Represents an image asset found in the head of the page */
 export interface ImageAsset {
   /** URL of the image */
@@ -92,6 +116,8 @@ export interface ResourcesData {
   links?: Array<{ href: string; rel?: string }>;
   /** Theme color from <meta name="theme-color"> */
   themeColor?: string;
+  /** Font assets found in the page */
+  fonts?: FontAsset[];
 }
 
 export interface NetworkingData {

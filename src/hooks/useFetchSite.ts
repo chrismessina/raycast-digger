@@ -2,13 +2,22 @@ import { useState, useCallback, useRef } from "react";
 import * as cheerio from "cheerio";
 import { showToast, Toast } from "@raycast/api";
 import { fetchHeadOnlyWithFallback, fetchWithTimeout, fetchTextResource } from "../utils/fetcher";
-import { normalizeUrl, getRootResourceUrl } from "../utils/urlUtils";
 import { fetchWaybackMachineData } from "../utils/waybackUtils";
 import { fetchHostMetadata } from "../utils/hostMetaUtils";
 import { useCache } from "./useCache";
-import { DiggerResult, OverviewData, MetadataData, DiscoverabilityData, BotProtectionData, ImageAsset } from "../types";
+import {
+  DiggerResult,
+  OverviewData,
+  MetadataData,
+  DiscoverabilityData,
+  BotProtectionData,
+  ImageAsset,
+  FontAsset,
+} from "../types";
 import { detectBotProtection } from "../utils/botDetection";
+import { normalizeUrl, getRootResourceUrl } from "../utils/urlUtils";
 import { performDNSLookup, getTLSCertificateInfo, CertificateInfo } from "../utils/dnsUtils";
+import { parseFontsFromUrl, extractPreloadFont, deduplicateFonts } from "../utils/fontUtils";
 import { getLogger } from "../utils/logger";
 
 const log = getLogger("fetch");
@@ -329,9 +338,7 @@ export function useFetchSite(url?: string) {
         const discoverability: DiscoverabilityData = {
           robots: $('meta[name="robots"]').attr("content"),
           robotsTxt:
-            robotsTxtResult.status === "fulfilled" &&
-            !!robotsTxtResult.value &&
-            robotsTxtResult.value.exists === true,
+            robotsTxtResult.status === "fulfilled" && !!robotsTxtResult.value && robotsTxtResult.value.exists === true,
           canonical: $('link[rel="canonical"]').attr("href"),
           sitemap:
             sitemapResult.status === "fulfilled" &&
@@ -340,10 +347,7 @@ export function useFetchSite(url?: string) {
             sitemapResult.value.status < 300
               ? sitemapUrl
               : undefined,
-          llmsTxt:
-            llmsTxtResult.status === "fulfilled" &&
-            !!llmsTxtResult.value &&
-            llmsTxtResult.value.exists === true,
+          llmsTxt: llmsTxtResult.status === "fulfilled" && !!llmsTxtResult.value && llmsTxtResult.value.exists === true,
         };
 
         const alternates: Array<{ href: string; hreflang?: string; type?: string }> = [];
@@ -526,6 +530,47 @@ export function useFetchSite(url?: string) {
             }
           });
 
+        // 8. Extract fonts from various sources
+        const fonts: FontAsset[] = [];
+
+        // 8a. Google Fonts, Bunny Fonts, Adobe Fonts from stylesheet links
+        $('link[rel="stylesheet"]').each((_, el) => {
+          const href = $(el).attr("href");
+          if (href) {
+            const resolvedUrl = resolveUrl(href);
+            const parsedFonts = parseFontsFromUrl(resolvedUrl);
+            fonts.push(...parsedFonts);
+          }
+        });
+
+        // 8b. Font preload links
+        $('link[rel="preload"][as="font"]').each((_, el) => {
+          const href = $(el).attr("href");
+          if (href) {
+            const resolvedUrl = resolveUrl(href);
+            const type = $(el).attr("type");
+            fonts.push(extractPreloadFont(resolvedUrl, type));
+          }
+        });
+
+        // 8c. Check scripts for Adobe Fonts/Typekit
+        $("script[src]").each((_, el) => {
+          const src = $(el).attr("src");
+          if (src) {
+            const resolvedUrl = resolveUrl(src);
+            const parsedFonts = parseFontsFromUrl(resolvedUrl);
+            fonts.push(...parsedFonts);
+          }
+        });
+
+        // Deduplicate fonts
+        const deduplicatedFonts = deduplicateFonts(fonts);
+        log.log("parse:fonts", {
+          rawCount: fonts.length,
+          deduplicatedCount: deduplicatedFonts.length,
+          families: deduplicatedFonts.map((f) => f.family),
+        });
+
         // Extract feed URLs
         const rssFeeds: Array<{ url: string; title?: string }> = [];
         const atomFeeds: Array<{ url: string; title?: string }> = [];
@@ -565,6 +610,7 @@ export function useFetchSite(url?: string) {
             images: images.length > 0 ? images : undefined,
             links: links.length > 0 ? links : undefined,
             themeColor,
+            fonts: deduplicatedFonts.length > 0 ? deduplicatedFonts : undefined,
           },
           dataFeeds:
             rssFeeds.length > 0 || atomFeeds.length > 0 || jsonFeeds.length > 0
@@ -664,6 +710,7 @@ export function useFetchSite(url?: string) {
             images: images.length > 0 ? images : undefined,
             links: links.length > 0 ? links : undefined,
             themeColor,
+            fonts: deduplicatedFonts.length > 0 ? deduplicatedFonts : undefined,
           },
           networking: {
             statusCode: status,

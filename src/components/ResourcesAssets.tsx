@@ -1,6 +1,7 @@
 import { List, Icon, Color, Action } from "@raycast/api";
 import { getProgressIcon } from "@raycast/utils";
-import { DiggerResult } from "../types";
+import { DiggerResult, FontAsset } from "../types";
+import { FONT_PROVIDER_NAMES } from "../utils/fontUtils";
 import { Actions } from "../actions";
 import { truncateText } from "../utils/formatters";
 import { getDeniedAccessMessage } from "../utils/botDetection";
@@ -42,7 +43,8 @@ export function ResourcesAssets({ data, onRefresh, progress }: ResourcesAssetsPr
   const hasStylesheets = !!(resources?.stylesheets && resources.stylesheets.length > 0);
   const hasScripts = !!(resources?.scripts && resources.scripts.length > 0);
   const hasImages = !!(resources?.images && resources.images.length > 0);
-  const hasResources = hasStylesheets || hasScripts || hasImages;
+  const hasFonts = !!(resources?.fonts && resources.fonts.length > 0);
+  const hasResources = hasStylesheets || hasScripts || hasImages || hasFonts;
 
   // Get unique image count for display
   const uniqueImageCount = getUniqueImageCount(resources?.images);
@@ -51,13 +53,15 @@ export function ResourcesAssets({ data, onRefresh, progress }: ResourcesAssetsPr
   if (hasStylesheets) counts.push(`${resources!.stylesheets!.length} CSS`);
   if (hasScripts) counts.push(`${resources!.scripts!.length} JS`);
   if (hasImages) counts.push(`${uniqueImageCount} Images`);
+  if (hasFonts) counts.push(`${resources!.fonts!.length} Fonts`);
 
   // Check if we should show "View All" action (>5 resources in any category)
   const stylesheetsCount = resources?.stylesheets?.length ?? 0;
   const scriptsCount = resources?.scripts?.length ?? 0;
+  const fontsCount = resources?.fonts?.length ?? 0;
   const feedsCount =
     (data.dataFeeds?.rss?.length ?? 0) + (data.dataFeeds?.atom?.length ?? 0) + (data.dataFeeds?.json?.length ?? 0);
-  const hasMany = stylesheetsCount > 5 || scriptsCount > 5 || feedsCount > 5;
+  const hasMany = stylesheetsCount > 5 || scriptsCount > 5 || feedsCount > 5 || fontsCount > 5;
 
   // Show progress icon while loading, then show document icon
   const listIcon = isLoading ? getProgressIcon(progress, Color.Blue) : Icon.Code;
@@ -79,6 +83,7 @@ export function ResourcesAssets({ data, onRefresh, progress }: ResourcesAssetsPr
           hasStylesheets={hasStylesheets}
           hasScripts={hasScripts}
           hasImages={hasImages}
+          hasFonts={hasFonts}
           isChallengePage={isChallengePage}
           uniqueImageCount={uniqueImageCount}
         />
@@ -113,6 +118,7 @@ interface ResourcesAssetsDetailProps {
   hasStylesheets: boolean;
   hasScripts: boolean;
   hasImages: boolean;
+  hasFonts: boolean;
   isChallengePage: boolean;
   uniqueImageCount: number;
 }
@@ -122,6 +128,7 @@ function ResourcesAssetsDetail({
   hasStylesheets,
   hasScripts,
   hasImages,
+  hasFonts,
   isChallengePage,
   uniqueImageCount,
 }: ResourcesAssetsDetailProps) {
@@ -133,6 +140,17 @@ function ResourcesAssetsDetail({
     <List.Item.Detail
       metadata={
         <List.Item.Detail.Metadata>
+          {hasThemeColor && (
+            <>
+              <List.Item.Detail.Metadata.TagList title="Theme Color">
+                <List.Item.Detail.Metadata.TagList.Item
+                  text={resources!.themeColor!}
+                  color={resources!.themeColor! as Color.ColorLike}
+                />
+              </List.Item.Detail.Metadata.TagList>
+              <List.Item.Detail.Metadata.Separator />ver
+            </>
+          )}
           <List.Item.Detail.Metadata.Label
             title={`Stylesheets${hasStylesheets ? ` (${resources!.stylesheets!.length})` : ""}`}
             icon={
@@ -200,7 +218,10 @@ function ResourcesAssetsDetail({
                     <List.Item.Detail.Metadata.Label title="" text={`...and ${externalScripts.length - 5} more`} />
                   )}
                   {inlineCount > 0 && (
-                    <List.Item.Detail.Metadata.Label title="" text={`+ ${inlineCount} inline script${inlineCount > 1 ? "s" : ""}`} />
+                    <List.Item.Detail.Metadata.Label
+                      title=""
+                      text={`+ ${inlineCount} inline script${inlineCount > 1 ? "s" : ""}`}
+                    />
                   )}
                 </>
               );
@@ -255,17 +276,38 @@ function ResourcesAssetsDetail({
             <List.Item.Detail.Metadata.Label title="" text={isChallengePage ? deniedMessage : "No images found"} />
           )}
 
-          {hasThemeColor && (
-            <>
-              <List.Item.Detail.Metadata.Separator />
-              <List.Item.Detail.Metadata.TagList title="Theme Color">
-                <List.Item.Detail.Metadata.TagList.Item 
-                  text={resources!.themeColor!} 
-                  color={resources!.themeColor! as Color.ColorLike} 
+          <List.Item.Detail.Metadata.Separator />
+          <List.Item.Detail.Metadata.Label
+            title={`Fonts${hasFonts ? ` (${resources!.fonts!.length})` : ""}`}
+            icon={
+              isChallengePage
+                ? { source: Icon.ExclamationMark, tintColor: Color.Orange }
+                : hasFonts
+                  ? { source: Icon.Check, tintColor: Color.Green }
+                  : { source: Icon.Xmark, tintColor: Color.Red }
+            }
+          />
+          {hasFonts &&
+            resources!.fonts!.slice(0, 5).map((font: FontAsset, index: number) => {
+              const providerName = FONT_PROVIDER_NAMES[font.provider];
+              const variantsText = font.variants ? ` (${font.variants.join(", ")})` : "";
+              return (
+                <List.Item.Detail.Metadata.Link
+                  key={index}
+                  title={providerName}
+                  target={font.url}
+                  text={`${font.family}${variantsText}`}
                 />
-              </List.Item.Detail.Metadata.TagList>
-            </>
+              );
+            })}
+          {hasFonts && resources!.fonts!.length > 5 && (
+            <List.Item.Detail.Metadata.Label title="" text={`...and ${resources!.fonts!.length - 5} more`} />
           )}
+          {!hasFonts && (
+            <List.Item.Detail.Metadata.Label title="" text={isChallengePage ? deniedMessage : "No fonts found"} />
+          )}
+
+
         </List.Item.Detail.Metadata>
       }
     />

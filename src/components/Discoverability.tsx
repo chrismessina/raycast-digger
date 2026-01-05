@@ -67,6 +67,8 @@ export function Discoverability({ data, onRefresh, progress }: DiscoverabilityPr
           hasCanonical={hasCanonical}
           hasSitemap={hasSitemap}
           hasLlmsTxt={hasLlmsTxt}
+          sitemapUrl={sitemapUrl}
+          robotsUrl={robotsUrl}
           llmsTxtUrl={llmsTxtUrl}
           hasAlternates={hasAlternates}
         />
@@ -96,6 +98,8 @@ interface DiscoverabilityDetailProps {
   hasCanonical: boolean;
   hasSitemap: boolean;
   hasLlmsTxt: boolean;
+  sitemapUrl: string | undefined;
+  robotsUrl: string | undefined;
   llmsTxtUrl: string | undefined;
   hasAlternates: boolean;
 }
@@ -107,6 +111,8 @@ function DiscoverabilityDetail({
   hasCanonical,
   hasSitemap,
   hasLlmsTxt,
+  sitemapUrl,
+  robotsUrl,
   llmsTxtUrl,
   hasAlternates,
 }: DiscoverabilityDetailProps) {
@@ -137,24 +143,26 @@ function DiscoverabilityDetail({
               hasRobots ? { source: Icon.Check, tintColor: Color.Green } : { source: Icon.Xmark, tintColor: Color.Red }
             }
           />
-          <List.Item.Detail.Metadata.Label
-            title="Sitemap"
-            text={discoverability?.sitemap ? "Found" : "Not found"}
-            icon={
-              hasSitemap ? { source: Icon.Check, tintColor: Color.Green } : { source: Icon.Xmark, tintColor: Color.Red }
-            }
-          />
-          <List.Item.Detail.Metadata.Label
-            title="robots.txt"
-            text={discoverability?.robotsTxt ? "Found" : "Not found"}
-            icon={
-              hasRobotsTxt
-                ? { source: Icon.Check, tintColor: Color.Green }
-                : { source: Icon.Xmark, tintColor: Color.Red }
-            }
-          />
+          {hasSitemap && sitemapUrl ? (
+            <List.Item.Detail.Metadata.Link title="Sitemap" target={sitemapUrl} text="✔︎ Found" />
+          ) : (
+            <List.Item.Detail.Metadata.Label
+              title="Sitemap"
+              text="Not found"
+              icon={{ source: Icon.Xmark, tintColor: Color.Red }}
+            />
+          )}
+          {hasRobotsTxt && robotsUrl ? (
+            <List.Item.Detail.Metadata.Link title="robots.txt" target={robotsUrl} text="✔︎ Found" />
+          ) : (
+            <List.Item.Detail.Metadata.Label
+              title="robots.txt"
+              text="Not found"
+              icon={{ source: Icon.Xmark, tintColor: Color.Red }}
+            />
+          )}
           {hasLlmsTxt && llmsTxtUrl ? (
-            <List.Item.Detail.Metadata.Link title="LLMs.txt" target={llmsTxtUrl} text={truncateText(llmsTxtUrl, 50)} />
+            <List.Item.Detail.Metadata.Link title="LLMs.txt" target={llmsTxtUrl} text="✔︎ Found" />
           ) : (
             <List.Item.Detail.Metadata.Label
               title="LLMs.txt"

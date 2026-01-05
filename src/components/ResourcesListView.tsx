@@ -1,9 +1,10 @@
-import { List, ActionPanel, Action, Icon, Keyboard } from "@raycast/api";
 import { useState } from "react";
+import { List, ActionPanel, Action, Icon, Keyboard } from "@raycast/api";
 import { DiggerResult, DataFeedsData } from "../types";
+import { FONT_PROVIDER_NAMES } from "../utils/fontUtils";
 import { truncateText } from "../utils/formatters";
 
-type ResourceType = "all" | "stylesheets" | "scripts" | "feeds";
+type ResourceType = "all" | "stylesheets" | "scripts" | "feeds" | "fonts";
 
 interface ResourcesListViewProps {
   data: DiggerResult;
@@ -11,7 +12,7 @@ interface ResourcesListViewProps {
 }
 
 interface ResourceItem {
-  type: "stylesheet" | "script" | "feed";
+  type: "stylesheet" | "script" | "feed" | "font";
   url: string;
   filename: string;
   subtitle?: string;
@@ -77,6 +78,20 @@ function buildResourceItems(data: DiggerResult): ResourceItem[] {
     addFeeds(data.dataFeeds.json, "JSON");
   }
 
+  // Add fonts
+  if (data.resources?.fonts) {
+    for (const font of data.resources.fonts) {
+      const providerName = FONT_PROVIDER_NAMES[font.provider];
+      const variantsText = font.variants ? font.variants.join(", ") : undefined;
+      items.push({
+        type: "font",
+        url: font.url,
+        filename: font.family,
+        subtitle: variantsText ? `${providerName} • ${variantsText}` : providerName,
+      });
+    }
+  }
+
   return items;
 }
 
@@ -85,6 +100,7 @@ function filterItems(items: ResourceItem[], filter: ResourceType): ResourceItem[
   if (filter === "feeds") return items.filter((item) => item.type === "feed");
   if (filter === "stylesheets") return items.filter((item) => item.type === "stylesheet");
   if (filter === "scripts") return items.filter((item) => item.type === "script");
+  if (filter === "fonts") return items.filter((item) => item.type === "font");
   return items;
 }
 
@@ -96,6 +112,8 @@ function getIconForType(type: ResourceItem["type"]): Icon {
       return Icon.Code;
     case "feed":
       return Icon.Rss;
+    case "font":
+      return Icon.Text;
   }
 }
 
@@ -107,6 +125,8 @@ function getSectionTitle(type: ResourceItem["type"]): string {
       return "Scripts";
     case "feed":
       return "Feeds";
+    case "font":
+      return "Fonts";
   }
 }
 
@@ -128,7 +148,7 @@ export function ResourcesListView({ data, initialFilter = "all" }: ResourcesList
     {} as Record<string, ResourceItem[]>,
   );
 
-  const sectionOrder: ResourceItem["type"][] = ["stylesheet", "script", "feed"];
+  const sectionOrder: ResourceItem["type"][] = ["stylesheet", "script", "feed", "font"];
 
   return (
     <List
@@ -140,6 +160,7 @@ export function ResourcesListView({ data, initialFilter = "all" }: ResourcesList
           <List.Dropdown.Item title="Stylesheets" value="stylesheets" icon={Icon.Brush} />
           <List.Dropdown.Item title="Scripts" value="scripts" icon={Icon.Code} />
           <List.Dropdown.Item title="Feeds" value="feeds" icon={Icon.Rss} />
+          <List.Dropdown.Item title="Fonts" value="fonts" icon={Icon.Text} />
         </List.Dropdown>
       }
     >
