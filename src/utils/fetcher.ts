@@ -3,6 +3,15 @@ import { TIMEOUTS, LIMITS } from "./config";
 
 const log = getLogger("fetcher");
 
+/**
+ * Common fetch options to avoid V8 RegExpCompiler crashes in Raycast's
+ * memory-constrained worker. Disabling compression bypasses the decompression
+ * code path that can trigger V8 memory allocation failures.
+ */
+const FETCH_HEADERS = {
+  "Accept-Encoding": "identity",
+};
+
 export interface FetchResult {
   response: Response;
   status: number;
@@ -20,23 +29,37 @@ export interface StreamedHeadResult {
   truncated: boolean;
 }
 
+export interface TextResourceResult {
+  exists: boolean;
+  content?: string;
+  contentType?: string;
+  status: number;
+  isSoft404: boolean;
+}
+
+/** Extracts headers from a Response into a plain object */
+function extractHeaders(response: Response): Record<string, string> {
+  const headers: Record<string, string> = {};
+  response.headers.forEach((value, key) => {
+    headers[key] = value;
+  });
+  return headers;
+}
+
 /**
- * Streams a response and extracts only the <head> content to minimize memory usage.
- * Stops reading once </head> is found or MAX_HEAD_BYTES is reached.
+ * Fetches a URL and extracts only the <head> content to minimize memory usage.
  */
 export async function fetchHeadOnly(
   url: string,
   timeout: number = TIMEOUTS.HTML_FETCH,
   externalSignal?: AbortSignal,
 ): Promise<StreamedHeadResult> {
-  log.log("fetchHeadOnly:start", { url, timeout });
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   // Link external signal to our controller
   if (externalSignal) {
     if (externalSignal.aborted) {
-      log.log("fetchHeadOnly:external-signal-already-aborted", { url });
       throw new Error("Fetch aborted");
     }
     externalSignal.addEventListener("abort", () => controller.abort(), { once: true });
@@ -48,62 +71,36 @@ export async function fetchHeadOnly(
     const response = await fetch(url, {
       signal: controller.signal,
       redirect: "follow",
-      headers: {
-        // Disable compression to avoid V8 RegExpCompiler crashes in Raycast's
-        // memory-constrained worker. The decompression code path in Node.js
-        // can trigger V8 memory allocation failures on certain sites.
-        "Accept-Encoding": "identity",
-      },
+      headers: FETCH_HEADERS,
     });
 
-    const endTime = performance.now();
-    const timing = endTime - startTime;
-    log.log("fetchHeadOnly:response", { status: response.status, finalUrl: response.url, timing });
-
-    const headers: Record<string, string> = {};
-    response.headers.forEach((value, key) => {
-      headers[key] = value;
-    });
-
-    // Use response.text() instead of streaming to avoid V8 RegExp memory issues
-    // that can occur with certain sites during stream reading
-    log.log("fetchHeadOnly:fetching-text", { url });
+    const timing = performance.now() - startTime;
+    const headers = extractHeaders(response);
     const fullText = await response.text();
-    log.log("fetchHeadOnly:text-received", { url, length: fullText.length });
 
-    let accumulated = fullText;
+    // Find where head ends (case-insensitive)
+    let headHtml = fullText;
     let truncated = false;
 
-    // Extract just the head section
-    let headEndIndex = accumulated.indexOf("</head>");
-    if (headEndIndex === -1) headEndIndex = accumulated.indexOf("</HEAD>");
-    if (headEndIndex === -1) headEndIndex = accumulated.indexOf("</Head>");
-
-    if (headEndIndex !== -1) {
-      log.log("fetchHeadOnly:found-head-end", { headEndIndex });
-      accumulated = accumulated.slice(0, headEndIndex + 7); // Include </head>
+    const headEndMatch = fullText.match(/<\/head>/i);
+    if (headEndMatch && headEndMatch.index !== undefined) {
+      headHtml = fullText.slice(0, headEndMatch.index + 7);
       truncated = true;
     } else {
-      // Check for <body> as a fallback
-      let bodyStartIndex = accumulated.indexOf("<body");
-      if (bodyStartIndex === -1) bodyStartIndex = accumulated.indexOf("<BODY");
-      if (bodyStartIndex === -1) bodyStartIndex = accumulated.indexOf("<Body");
-
-      if (bodyStartIndex !== -1) {
-        log.log("fetchHeadOnly:found-body-start", { bodyStartIndex });
-        accumulated = accumulated.slice(0, bodyStartIndex);
+      // Fallback: look for <body> start
+      const bodyStartMatch = fullText.match(/<body[\s>]/i);
+      if (bodyStartMatch && bodyStartMatch.index !== undefined) {
+        headHtml = fullText.slice(0, bodyStartMatch.index);
         truncated = true;
-      } else if (accumulated.length > LIMITS.MAX_HEAD_BYTES) {
-        // Truncate if too large
-        log.log("fetchHeadOnly:truncating", { originalLength: accumulated.length, maxBytes: LIMITS.MAX_HEAD_BYTES });
-        accumulated = accumulated.slice(0, LIMITS.MAX_HEAD_BYTES);
+      } else if (fullText.length > LIMITS.MAX_HEAD_BYTES) {
+        headHtml = fullText.slice(0, LIMITS.MAX_HEAD_BYTES);
         truncated = true;
       }
     }
 
-    log.log("fetchHeadOnly:complete", { url, truncated, htmlLength: accumulated.length });
+    log.log("fetchHeadOnly:complete", { url, truncated, htmlLength: headHtml.length });
     return {
-      headHtml: accumulated,
+      headHtml,
       status: response.status,
       headers,
       timing,
@@ -112,15 +109,11 @@ export async function fetchHeadOnly(
     };
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
-      // Check if this was an external abort or a timeout
       if (externalSignal?.aborted) {
-        log.log("fetchHeadOnly:aborted", { url });
         throw new Error("Fetch aborted");
       }
-      log.error("fetchHeadOnly:timeout", { url, timeout });
       throw new Error(`Request timeout after ${timeout}ms`);
     }
-    log.error("fetchHeadOnly:error", { url, error: error instanceof Error ? error.message : String(error) });
     throw error;
   } finally {
     clearTimeout(timeoutId);
@@ -129,7 +122,6 @@ export async function fetchHeadOnly(
 
 /**
  * Attempts to fetch with HTTPS first, falls back to HTTP if HTTPS fails.
- * This handles sites that don't support SSL/TLS.
  */
 export async function fetchHeadOnlyWithFallback(
   url: string,
@@ -140,78 +132,52 @@ export async function fetchHeadOnlyWithFallback(
 
   // If explicitly using http://, don't try https first
   if (urlObj.protocol === "http:") {
-    log.log("fetchHeadOnlyWithFallback:http-explicit", { url });
     return fetchHeadOnly(url, timeout, signal);
   }
 
-  // Try HTTPS first
   try {
     return await fetchHeadOnly(url, timeout, signal);
   } catch (httpsError) {
-    // If HTTPS failed, try HTTP as fallback
+    // Try HTTP as fallback
     const httpUrl = url.replace(/^https:\/\//i, "http://");
-    log.log("fetchHeadOnlyWithFallback:https-failed-trying-http", {
-      originalUrl: url,
-      httpUrl,
-      error: httpsError instanceof Error ? httpsError.message : String(httpsError),
-    });
+    log.log("fetchHeadOnlyWithFallback:https-failed-trying-http", { url, httpUrl });
 
     try {
-      const result = await fetchHeadOnly(httpUrl, timeout, signal);
-      log.log("fetchHeadOnlyWithFallback:http-success", { httpUrl });
-      return result;
-    } catch (httpError) {
+      return await fetchHeadOnly(httpUrl, timeout, signal);
+    } catch {
       // Both failed, throw the original HTTPS error
-      log.error("fetchHeadOnlyWithFallback:both-failed", {
-        url,
-        httpsError: httpsError instanceof Error ? httpsError.message : String(httpsError),
-        httpError: httpError instanceof Error ? httpError.message : String(httpError),
-      });
       throw httpsError;
     }
   }
 }
 
-export interface TextResourceResult {
-  exists: boolean;
-  content?: string;
-  contentType?: string;
-  status: number;
-  isSoft404: boolean;
-}
-
 /**
  * Validates if a response is a genuine text resource (not a soft 404 HTML page).
- * Checks Content-Type header and content for HTML markers.
  */
 function isValidTextResource(contentType: string | undefined, content: string): boolean {
-  // Check Content-Type - should be text/plain for robots.txt, llms.txt, etc.
-  // Some servers may return application/octet-stream or no content-type
+  // If Content-Type explicitly says HTML, it's a soft 404
   if (contentType) {
     const lowerContentType = contentType.toLowerCase();
-    // If explicitly HTML, it's a soft 404
     if (lowerContentType.includes("text/html") || lowerContentType.includes("application/xhtml")) {
       return false;
     }
   }
 
-  // Check content for HTML markers (case-insensitive)
-  const trimmedContent = content.trim().toLowerCase();
+  // Check content for HTML markers
+  const firstChunk = content.trim().slice(0, 500).toLowerCase();
 
-  // Common HTML document markers
   if (
-    trimmedContent.startsWith("<!doctype") ||
-    trimmedContent.startsWith("<html") ||
-    trimmedContent.startsWith("<head") ||
-    trimmedContent.startsWith("<body") ||
-    trimmedContent.startsWith("<?xml") // XHTML
+    firstChunk.startsWith("<!doctype") ||
+    firstChunk.startsWith("<html") ||
+    firstChunk.startsWith("<head") ||
+    firstChunk.startsWith("<body") ||
+    firstChunk.startsWith("<?xml")
   ) {
     return false;
   }
 
-  // Check for HTML tags anywhere in the first 500 chars (some soft 404s may have whitespace first)
-  const firstChunk = trimmedContent.slice(0, 500);
-  if (/<html[\s>]/i.test(firstChunk) || /<head[\s>]/i.test(firstChunk) || /<body[\s>]/i.test(firstChunk)) {
+  // Check for HTML tags anywhere in first chunk
+  if (/<html[\s>]/.test(firstChunk) || /<head[\s>]/.test(firstChunk) || /<body[\s>]/.test(firstChunk)) {
     return false;
   }
 
@@ -220,7 +186,6 @@ function isValidTextResource(contentType: string | undefined, content: string): 
 
 /**
  * Fetches a text resource (like robots.txt or llms.txt) and validates it's not a soft 404.
- * Returns the content if valid, or marks it as a soft 404 if HTML is returned.
  */
 export async function fetchTextResource(
   url: string,
@@ -233,36 +198,20 @@ export async function fetchTextResource(
     const response = await fetch(url, {
       signal: controller.signal,
       redirect: "follow",
-      headers: {
-        // Disable compression to avoid V8 RegExpCompiler crashes
-        "Accept-Encoding": "identity",
-      },
+      headers: FETCH_HEADERS,
     });
 
     const contentType = response.headers.get("content-type") || undefined;
 
-    // If not a 2xx status, resource doesn't exist
     if (response.status < 200 || response.status >= 300) {
-      return {
-        exists: false,
-        status: response.status,
-        contentType,
-        isSoft404: false,
-      };
+      return { exists: false, status: response.status, contentType, isSoft404: false };
     }
 
-    // Read the content to validate it
     const content = await response.text();
-
-    // Validate it's actually a text resource, not an HTML soft 404
     const isValid = isValidTextResource(contentType, content);
 
     if (!isValid) {
-      log.log("fetchTextResource:soft404-detected", {
-        url,
-        contentType,
-        contentPreview: content.slice(0, 100),
-      });
+      log.log("fetchTextResource:soft404-detected", { url, contentType });
     }
 
     return {
@@ -282,35 +231,26 @@ export async function fetchTextResource(
   }
 }
 
+/**
+ * Simple fetch with timeout, returning the response and metadata.
+ */
 export async function fetchWithTimeout(url: string, timeout: number = TIMEOUTS.RESOURCE_FETCH): Promise<FetchResult> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
-
   const startTime = performance.now();
 
   try {
     const response = await fetch(url, {
       signal: controller.signal,
       redirect: "follow",
-      headers: {
-        // Disable compression to avoid V8 RegExpCompiler crashes
-        "Accept-Encoding": "identity",
-      },
-    });
-
-    const endTime = performance.now();
-    const timing = endTime - startTime;
-
-    const headers: Record<string, string> = {};
-    response.headers.forEach((value, key) => {
-      headers[key] = value;
+      headers: FETCH_HEADERS,
     });
 
     return {
       response,
       status: response.status,
-      headers,
-      timing,
+      headers: extractHeaders(response),
+      timing: performance.now() - startTime,
       finalUrl: response.url,
     };
   } catch (error) {
