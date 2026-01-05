@@ -3,6 +3,7 @@ import { getProgressIcon } from "@raycast/utils";
 import { DiggerResult } from "../types";
 import { Actions } from "../actions";
 import { truncateText } from "../utils/formatters";
+import { getDeniedAccessMessage } from "../utils/botDetection";
 
 interface ResourcesAssetsProps {
   data: DiggerResult | null;
@@ -33,7 +34,8 @@ export function ResourcesAssets({ data, onRefresh, progress }: ResourcesAssetsPr
     );
   }
 
-  const { resources } = data;
+  const { resources, botProtection } = data;
+  const isChallengePage = botProtection?.isChallengePage ?? false;
 
   const hasStylesheets = !!(resources?.stylesheets && resources.stylesheets.length > 0);
   const hasScripts = !!(resources?.scripts && resources.scripts.length > 0);
@@ -52,13 +54,20 @@ export function ResourcesAssets({ data, onRefresh, progress }: ResourcesAssetsPr
     <List.Item
       title="Resources & Assets"
       icon={listIcon}
-      accessories={hasResources ? [{ icon: { source: Icon.Check, tintColor: Color.Green } }] : undefined}
+      accessories={
+        isChallengePage
+          ? [{ icon: { source: Icon.ExclamationMark, tintColor: Color.Orange } }]
+          : hasResources
+            ? [{ icon: { source: Icon.Check, tintColor: Color.Green } }]
+            : undefined
+      }
       detail={
         <ResourcesAssetsDetail
           data={data}
           hasStylesheets={hasStylesheets}
           hasScripts={hasScripts}
           hasImages={hasImages}
+          isChallengePage={isChallengePage}
         />
       }
       actions={<Actions data={data} url={data.url} onRefresh={onRefresh} />}
@@ -71,10 +80,18 @@ interface ResourcesAssetsDetailProps {
   hasStylesheets: boolean;
   hasScripts: boolean;
   hasImages: boolean;
+  isChallengePage: boolean;
 }
 
-function ResourcesAssetsDetail({ data, hasStylesheets, hasScripts, hasImages }: ResourcesAssetsDetailProps) {
-  const { resources } = data;
+function ResourcesAssetsDetail({
+  data,
+  hasStylesheets,
+  hasScripts,
+  hasImages,
+  isChallengePage,
+}: ResourcesAssetsDetailProps) {
+  const { resources, botProtection } = data;
+  const deniedMessage = getDeniedAccessMessage(botProtection?.provider);
 
   return (
     <List.Item.Detail
@@ -83,9 +100,11 @@ function ResourcesAssetsDetail({ data, hasStylesheets, hasScripts, hasImages }: 
           <List.Item.Detail.Metadata.Label
             title={`Stylesheets${hasStylesheets ? ` (${resources!.stylesheets!.length})` : ""}`}
             icon={
-              hasStylesheets
-                ? { source: Icon.Check, tintColor: Color.Green }
-                : { source: Icon.Xmark, tintColor: Color.Red }
+              isChallengePage
+                ? { source: Icon.ExclamationMark, tintColor: Color.Orange }
+                : hasStylesheets
+                  ? { source: Icon.Check, tintColor: Color.Green }
+                  : { source: Icon.Xmark, tintColor: Color.Red }
             }
           />
           {hasStylesheets &&
@@ -102,13 +121,19 @@ function ResourcesAssetsDetail({ data, hasStylesheets, hasScripts, hasImages }: 
           {hasStylesheets && resources!.stylesheets!.length > 5 && (
             <List.Item.Detail.Metadata.Label title="" text={`...and ${resources!.stylesheets!.length - 5} more`} />
           )}
-          {!hasStylesheets && <List.Item.Detail.Metadata.Label title="" text="No stylesheets found" />}
+          {!hasStylesheets && (
+            <List.Item.Detail.Metadata.Label title="" text={isChallengePage ? deniedMessage : "No stylesheets found"} />
+          )}
 
           <List.Item.Detail.Metadata.Separator />
           <List.Item.Detail.Metadata.Label
             title={`Scripts${hasScripts ? ` (${resources!.scripts!.length})` : ""}`}
             icon={
-              hasScripts ? { source: Icon.Check, tintColor: Color.Green } : { source: Icon.Xmark, tintColor: Color.Red }
+              isChallengePage
+                ? { source: Icon.ExclamationMark, tintColor: Color.Orange }
+                : hasScripts
+                  ? { source: Icon.Check, tintColor: Color.Green }
+                  : { source: Icon.Xmark, tintColor: Color.Red }
             }
           />
           {hasScripts &&
@@ -128,13 +153,19 @@ function ResourcesAssetsDetail({ data, hasStylesheets, hasScripts, hasImages }: 
           {hasScripts && resources!.scripts!.length > 5 && (
             <List.Item.Detail.Metadata.Label title="" text={`...and ${resources!.scripts!.length - 5} more`} />
           )}
-          {!hasScripts && <List.Item.Detail.Metadata.Label title="" text="No scripts found" />}
+          {!hasScripts && (
+            <List.Item.Detail.Metadata.Label title="" text={isChallengePage ? deniedMessage : "No scripts found"} />
+          )}
 
           <List.Item.Detail.Metadata.Separator />
           <List.Item.Detail.Metadata.Label
             title={`Images${hasImages ? ` (${resources!.images!.length})` : ""}`}
             icon={
-              hasImages ? { source: Icon.Check, tintColor: Color.Green } : { source: Icon.Xmark, tintColor: Color.Red }
+              isChallengePage
+                ? { source: Icon.ExclamationMark, tintColor: Color.Orange }
+                : hasImages
+                  ? { source: Icon.Check, tintColor: Color.Green }
+                  : { source: Icon.Xmark, tintColor: Color.Red }
             }
           />
           {hasImages &&
@@ -151,7 +182,9 @@ function ResourcesAssetsDetail({ data, hasStylesheets, hasScripts, hasImages }: 
           {hasImages && resources!.images!.length > 5 && (
             <List.Item.Detail.Metadata.Label title="" text={`...and ${resources!.images!.length - 5} more`} />
           )}
-          {!hasImages && <List.Item.Detail.Metadata.Label title="" text="No images found" />}
+          {!hasImages && (
+            <List.Item.Detail.Metadata.Label title="" text={isChallengePage ? deniedMessage : "No images found"} />
+          )}
         </List.Item.Detail.Metadata>
       }
     />

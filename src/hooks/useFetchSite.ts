@@ -6,7 +6,8 @@ import { normalizeUrl, getRootResourceUrl } from "../utils/urlUtils";
 import { fetchWaybackMachineData } from "../utils/waybackUtils";
 import { fetchHostMetadata } from "../utils/hostMetaUtils";
 import { useCache } from "./useCache";
-import { DiggerResult, OverviewData, MetadataData, DiscoverabilityData } from "../types";
+import { DiggerResult, OverviewData, MetadataData, DiscoverabilityData, BotProtectionData } from "../types";
+import { detectBotProtection } from "../utils/botDetection";
 import { performDNSLookup, getTLSCertificateInfo, CertificateInfo } from "../utils/dnsUtils";
 import { getLogger } from "../utils/logger";
 
@@ -111,39 +112,51 @@ export function useFetchSite(url?: string) {
         // Start these in parallel immediately - they're independent of HTML parsing
         updateProgress("dns", 0.3);
         updateProgress("history", 0.3);
-        
+
         // Wrap async operations to check abort signal
         const dnsPromise = new Promise<Awaited<ReturnType<typeof performDNSLookup>> | undefined>((resolve) => {
           if (abortController.signal.aborted) return resolve(undefined);
-          performDNSLookup(hostname).then(resolve).catch(() => resolve(undefined));
+          performDNSLookup(hostname)
+            .then(resolve)
+            .catch(() => resolve(undefined));
           abortController.signal.addEventListener("abort", () => resolve(undefined));
         });
-        
+
         const certPromise = new Promise<CertificateInfo | null>((resolve) => {
           if (abortController.signal.aborted) return resolve(null);
-          getTLSCertificateInfo(hostname).then(resolve).catch(() => resolve(null));
+          getTLSCertificateInfo(hostname)
+            .then(resolve)
+            .catch(() => resolve(null));
           abortController.signal.addEventListener("abort", () => resolve(null));
         });
-        
-        const waybackPromise = new Promise<Awaited<ReturnType<typeof fetchWaybackMachineData>> | undefined>((resolve) => {
-          if (abortController.signal.aborted) return resolve(undefined);
-          fetchWaybackMachineData(normalizedUrl).then(resolve).catch(() => resolve(undefined));
-          abortController.signal.addEventListener("abort", () => resolve(undefined));
-        });
-        
+
+        const waybackPromise = new Promise<Awaited<ReturnType<typeof fetchWaybackMachineData>> | undefined>(
+          (resolve) => {
+            if (abortController.signal.aborted) return resolve(undefined);
+            fetchWaybackMachineData(normalizedUrl)
+              .then(resolve)
+              .catch(() => resolve(undefined));
+            abortController.signal.addEventListener("abort", () => resolve(undefined));
+          },
+        );
+
         const hostMetaPromise = new Promise<Awaited<ReturnType<typeof fetchHostMetadata>> | undefined>((resolve) => {
           if (abortController.signal.aborted) return resolve(undefined);
-          fetchHostMetadata(normalizedUrl).then(resolve).catch(() => resolve(undefined));
+          fetchHostMetadata(normalizedUrl)
+            .then(resolve)
+            .catch(() => resolve(undefined));
           abortController.signal.addEventListener("abort", () => resolve(undefined));
         });
 
         // Use streaming fetch for main HTML to avoid memory issues on large pages
-        // Use getRootResourceUrl to ensure robots.txt and sitemap.xml are fetched from the domain root
+        // Use getRootResourceUrl to ensure robots.txt, llms.txt and sitemap.xml are fetched from the domain root
         const robotsUrl = getRootResourceUrl("robots.txt", normalizedUrl);
+        const llmsTxtUrl = getRootResourceUrl("llms.txt", normalizedUrl);
         const sitemapUrl = getRootResourceUrl("sitemap.xml", normalizedUrl);
-        const [htmlResult, , sitemapResult] = await Promise.allSettled([
+        const [htmlResult, , llmsTxtResult, sitemapResult] = await Promise.allSettled([
           fetchHeadOnlyWithFallback(normalizedUrl),
           robotsUrl ? fetchWithTimeout(robotsUrl).catch(() => null) : Promise.resolve(null),
+          llmsTxtUrl ? fetchWithTimeout(llmsTxtUrl).catch(() => null) : Promise.resolve(null),
           sitemapUrl ? fetchWithTimeout(sitemapUrl).catch(() => null) : Promise.resolve(null),
         ]);
 
@@ -188,17 +201,49 @@ export function useFetchSite(url?: string) {
         // Get language from html tag (it's at the start of the streamed content)
         const langMatch = streamedHtml.match(/<html[^>]*\slang=["']([^"']+)["']/i);
 
+        const rawTitle = $("title").text() || undefined;
+
+        // Detect bot protection before processing further
+        const botProtectionResult = detectBotProtection({
+          statusCode: status,
+          headers,
+          title: rawTitle,
+          html: streamedHtml,
+        });
+
+        let botProtection: BotProtectionData | undefined;
+        if (botProtectionResult.detected) {
+          log.log("parse:bot-protection-detected", {
+            provider: botProtectionResult.provider,
+            isChallenge: botProtectionResult.isChallengePage,
+            confidence: botProtectionResult.confidence,
+          });
+          botProtection = {
+            detected: true,
+            provider: botProtectionResult.provider,
+            providerName: botProtectionResult.providerName,
+            isChallengePage: botProtectionResult.isChallengePage,
+          };
+        }
+
+        // If it's a challenge page, don't use the fake title
+        const effectiveTitle = botProtectionResult.isChallengePage ? undefined : rawTitle;
+
         const overview: OverviewData = {
-          title: $("title").text() || undefined,
-          description: $('meta[name="description"]').attr("content"),
+          title: effectiveTitle,
+          description: botProtectionResult.isChallengePage ? undefined : $('meta[name="description"]').attr("content"),
           language: langMatch?.[1],
           charset: $("meta[charset]").attr("charset") || undefined,
         };
-        log.log("parse:overview", { title: overview.title, language: overview.language });
+        log.log("parse:overview", {
+          title: overview.title,
+          language: overview.language,
+          isChallengePage: botProtectionResult.isChallengePage,
+        });
 
         // Overview parsing complete - update immediately
         updateProgress("overview", 1);
-        updateData({ overview });
+        updateData({ overview, botProtection });
 
         const openGraph: Record<string, string> = {};
         $('meta[property^="og:"]').each((_, el) => {
@@ -243,12 +288,15 @@ export function useFetchSite(url?: string) {
           }
         });
 
-        const metadata: MetadataData = {
-          openGraph: Object.keys(openGraph).length > 0 ? openGraph : undefined,
-          twitterCard: Object.keys(twitterCard).length > 0 ? twitterCard : undefined,
-          jsonLd: jsonLdScripts.length > 0 ? jsonLdScripts : undefined,
-          metaTags: metaTags.length > 0 ? metaTags : undefined,
-        };
+        // If it's a challenge page, don't include the fake metadata
+        const metadata: MetadataData = botProtectionResult.isChallengePage
+          ? {}
+          : {
+              openGraph: Object.keys(openGraph).length > 0 ? openGraph : undefined,
+              twitterCard: Object.keys(twitterCard).length > 0 ? twitterCard : undefined,
+              jsonLd: jsonLdScripts.length > 0 ? jsonLdScripts : undefined,
+              metaTags: metaTags.length > 0 ? metaTags : undefined,
+            };
         log.log("parse:metadata", {
           ogTags: Object.keys(openGraph).length,
           twitterTags: Object.keys(twitterCard).length,
@@ -264,8 +312,8 @@ export function useFetchSite(url?: string) {
         const discoverability: DiscoverabilityData = {
           robots: $('meta[name="robots"]').attr("content"),
           canonical: $('link[rel="canonical"]').attr("href"),
-          sitemap:
-            sitemapResult.status === "fulfilled" && sitemapResult.value ? sitemapUrl : undefined,
+          sitemap: sitemapResult.status === "fulfilled" && sitemapResult.value ? sitemapUrl : undefined,
+          llmsTxt: llmsTxtResult.status === "fulfilled" && !!llmsTxtResult.value,
         };
 
         const alternates: Array<{ href: string; hreflang?: string; type?: string }> = [];
@@ -457,13 +505,18 @@ export function useFetchSite(url?: string) {
 
         // Determine final history data - don't cache rate-limited empty data over good data
         let finalHistoryData = waybackData;
-        if (waybackData?.rateLimited && (!waybackData.waybackMachineSnapshots || waybackData.waybackMachineSnapshots === 0)) {
+        if (
+          waybackData?.rateLimited &&
+          (!waybackData.waybackMachineSnapshots || waybackData.waybackMachineSnapshots === 0)
+        ) {
           // Rate limited with no data - check if we have existing good data in state
           const currentData = data;
           if (currentData?.history?.waybackMachineSnapshots && currentData.history.waybackMachineSnapshots > 0) {
             // Preserve existing good data, just mark as rate limited
             finalHistoryData = { ...currentData.history, rateLimited: true };
-            log.log("fetch:wayback-preserving-cached", { existingSnapshots: currentData.history.waybackMachineSnapshots });
+            log.log("fetch:wayback-preserving-cached", {
+              existingSnapshots: currentData.history.waybackMachineSnapshots,
+            });
           }
         }
 
@@ -473,6 +526,7 @@ export function useFetchSite(url?: string) {
           overview,
           metadata,
           discoverability,
+          botProtection,
           resources: {
             stylesheets: stylesheets.length > 0 ? stylesheets : undefined,
             scripts: scripts.length > 0 ? scripts : undefined,

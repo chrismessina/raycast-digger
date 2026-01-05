@@ -3,6 +3,7 @@ import { getProgressIcon } from "@raycast/utils";
 import { DiggerResult } from "../types";
 import { Actions } from "../actions";
 import { truncateText } from "../utils/formatters";
+import { getDeniedAccessMessage } from "../utils/botDetection";
 
 interface DataFeedsAPIProps {
   data: DiggerResult | null;
@@ -30,46 +31,39 @@ export function DataFeedsAPI({ data, onRefresh, progress }: DataFeedsAPIProps) {
     );
   }
 
-  const { dataFeeds, metadata } = data;
+  const { dataFeeds, metadata, botProtection } = data;
+  const isChallengePage = botProtection?.isChallengePage ?? false;
 
   const hasJsonLd = !!(metadata?.jsonLd && metadata.jsonLd.length > 0);
 
   const feedCount = (dataFeeds?.rss?.length || 0) + (dataFeeds?.atom?.length || 0) + (dataFeeds?.json?.length || 0);
 
-  const subtitle = buildSubtitle(feedCount, hasJsonLd);
-
   return (
     <List.Item
       title="Data Feeds & API"
-      subtitle={subtitle}
       icon={progress < 1 ? getProgressIcon(progress, Color.Blue) : Icon.Plug}
-      detail={<DataFeedsAPIDetail data={data} hasJsonLd={hasJsonLd} />}
+      accessories={
+        isChallengePage
+          ? [{ icon: { source: Icon.ExclamationMark, tintColor: Color.Orange } }]
+          : feedCount > 0 || hasJsonLd
+            ? [{ icon: { source: Icon.Check, tintColor: Color.Green } }]
+            : undefined
+      }
+      detail={<DataFeedsAPIDetail data={data} hasJsonLd={hasJsonLd} isChallengePage={isChallengePage} />}
       actions={<Actions data={data} url={data.url} onRefresh={onRefresh} />}
     />
   );
 }
 
-function buildSubtitle(feedCount: number, hasJsonLd: boolean): string {
-  const parts: string[] = [];
-
-  if (feedCount > 0) {
-    parts.push(`${feedCount} ${feedCount === 1 ? "feed" : "feeds"}`);
-  }
-
-  if (hasJsonLd) {
-    parts.push("JSON-LD");
-  }
-
-  return parts.join(", ") || "No feeds or API detected";
-}
-
 interface DataFeedsAPIDetailProps {
   data: DiggerResult;
   hasJsonLd: boolean;
+  isChallengePage: boolean;
 }
 
-function DataFeedsAPIDetail({ data, hasJsonLd }: DataFeedsAPIDetailProps) {
-  const { dataFeeds, metadata } = data;
+function DataFeedsAPIDetail({ data, hasJsonLd, isChallengePage }: DataFeedsAPIDetailProps) {
+  const { dataFeeds, metadata, botProtection } = data;
+  const deniedMessage = getDeniedAccessMessage(botProtection?.provider);
 
   return (
     <List.Item.Detail
@@ -80,7 +74,9 @@ function DataFeedsAPIDetail({ data, hasJsonLd }: DataFeedsAPIDetailProps) {
             icon={
               dataFeeds?.rss?.length
                 ? { source: Icon.Check, tintColor: Color.Green }
-                : { source: Icon.Xmark, tintColor: Color.Red }
+                : isChallengePage
+                  ? { source: Icon.ExclamationMark, tintColor: Color.Orange }
+                  : { source: Icon.Xmark, tintColor: Color.Red }
             }
           />
           {dataFeeds?.rss?.length ? (
@@ -95,7 +91,7 @@ function DataFeedsAPIDetail({ data, hasJsonLd }: DataFeedsAPIDetailProps) {
                 />
               ))
           ) : (
-            <List.Item.Detail.Metadata.Label title="" text="No RSS feeds found" />
+            <List.Item.Detail.Metadata.Label title="" text={isChallengePage ? deniedMessage : "No RSS feeds found"} />
           )}
 
           <List.Item.Detail.Metadata.Separator />
@@ -104,7 +100,9 @@ function DataFeedsAPIDetail({ data, hasJsonLd }: DataFeedsAPIDetailProps) {
             icon={
               dataFeeds?.atom?.length
                 ? { source: Icon.Check, tintColor: Color.Green }
-                : { source: Icon.Xmark, tintColor: Color.Red }
+                : isChallengePage
+                  ? { source: Icon.ExclamationMark, tintColor: Color.Orange }
+                  : { source: Icon.Xmark, tintColor: Color.Red }
             }
           />
           {dataFeeds?.atom?.length ? (
@@ -119,7 +117,7 @@ function DataFeedsAPIDetail({ data, hasJsonLd }: DataFeedsAPIDetailProps) {
                 />
               ))
           ) : (
-            <List.Item.Detail.Metadata.Label title="" text="No Atom feeds found" />
+            <List.Item.Detail.Metadata.Label title="" text={isChallengePage ? deniedMessage : "No Atom feeds found"} />
           )}
 
           <List.Item.Detail.Metadata.Separator />
@@ -128,7 +126,9 @@ function DataFeedsAPIDetail({ data, hasJsonLd }: DataFeedsAPIDetailProps) {
             icon={
               dataFeeds?.json?.length
                 ? { source: Icon.Check, tintColor: Color.Green }
-                : { source: Icon.Xmark, tintColor: Color.Red }
+                : isChallengePage
+                  ? { source: Icon.ExclamationMark, tintColor: Color.Orange }
+                  : { source: Icon.Xmark, tintColor: Color.Red }
             }
           />
           {dataFeeds?.json?.length ? (
@@ -143,14 +143,18 @@ function DataFeedsAPIDetail({ data, hasJsonLd }: DataFeedsAPIDetailProps) {
                 />
               ))
           ) : (
-            <List.Item.Detail.Metadata.Label title="" text="No JSON feeds found" />
+            <List.Item.Detail.Metadata.Label title="" text={isChallengePage ? deniedMessage : "No JSON feeds found"} />
           )}
 
           <List.Item.Detail.Metadata.Separator />
           <List.Item.Detail.Metadata.Label
             title="JSON-LD Structured Data"
             icon={
-              hasJsonLd ? { source: Icon.Check, tintColor: Color.Green } : { source: Icon.Xmark, tintColor: Color.Red }
+              hasJsonLd
+                ? { source: Icon.Check, tintColor: Color.Green }
+                : isChallengePage
+                  ? { source: Icon.ExclamationMark, tintColor: Color.Orange }
+                  : { source: Icon.Xmark, tintColor: Color.Red }
             }
           />
           {hasJsonLd ? (
@@ -160,7 +164,10 @@ function DataFeedsAPIDetail({ data, hasJsonLd }: DataFeedsAPIDetailProps) {
               return <List.Item.Detail.Metadata.Label key={index} title={`Type ${index + 1}`} text={typeStr} />;
             })
           ) : (
-            <List.Item.Detail.Metadata.Label title="" text="No JSON-LD data found" />
+            <List.Item.Detail.Metadata.Label
+              title=""
+              text={isChallengePage ? deniedMessage : "No JSON-LD data found"}
+            />
           )}
           {hasJsonLd && metadata!.jsonLd!.length > 3 && (
             <List.Item.Detail.Metadata.Label title="" text={`...and ${metadata!.jsonLd!.length - 3} more`} />

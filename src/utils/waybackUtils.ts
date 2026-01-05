@@ -8,7 +8,7 @@ const WAYBACK_BASE_URL = "https://web.archive.org";
 export async function fetchWaybackMachineData(url: string): Promise<HistoryData | undefined> {
   try {
     log.log("wayback:start", { url });
-    
+
     // First check if any snapshots exist
     const apiUrl = `${ARCHIVE_BASE_URL}/wayback/available?url=${encodeURIComponent(url)}`;
     const response = await fetch(apiUrl);
@@ -59,7 +59,7 @@ export async function fetchWaybackMachineData(url: string): Promise<HistoryData 
       if (Array.isArray(cdxData) && cdxData.length > 1) {
         // First row is header, so subtract 1
         snapshotCount = Math.max(0, cdxData.length - 1);
-        
+
         if (snapshotCount > 0) {
           // Get first snapshot (index 1, after header)
           firstTimestamp = cdxData[1]?.[0];
@@ -85,7 +85,13 @@ export async function fetchWaybackMachineData(url: string): Promise<HistoryData 
       archiveUrl: `${WAYBACK_BASE_URL}/web/*/${url}`,
       rateLimited,
     };
-    log.log("wayback:success", { url, snapshotCount, firstSeen: result.firstSeen, lastSeen: result.lastSeen, rateLimited });
+    log.log("wayback:success", {
+      url,
+      snapshotCount,
+      firstSeen: result.firstSeen,
+      lastSeen: result.lastSeen,
+      rateLimited,
+    });
     return result;
   } catch (err) {
     log.warn("wayback:error", { url, error: err instanceof Error ? err.message : String(err) });

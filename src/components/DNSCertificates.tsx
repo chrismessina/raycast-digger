@@ -33,22 +33,10 @@ export function DNSCertificates({ data, onRefresh, certificateInfo, progress }: 
   }
 
   const { dns } = data;
-  const hasARecords = !!(dns?.aRecords && dns.aRecords.length > 0);
-  const hasCert = !!certificateInfo;
-
-  const subtitle =
-    [
-      hasARecords && `${dns!.aRecords!.length} A records`,
-      hasCert &&
-        (certificateInfo!.daysUntilExpiry !== undefined ? `Cert: ${certificateInfo!.daysUntilExpiry}d` : "Cert info"),
-    ]
-      .filter(Boolean)
-      .join(", ") || "DNS records and TLS certificate";
 
   return (
     <List.Item
       title="DNS & Certificates"
-      subtitle={subtitle}
       icon={Icon.Lock}
       detail={<DNSCertificatesDetail dns={dns} certificateInfo={certificateInfo} />}
       actions={<Actions data={data} url={data.url} onRefresh={onRefresh} />}

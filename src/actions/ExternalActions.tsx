@@ -18,7 +18,7 @@ export function ExternalActions({ url }: ExternalActionsProps) {
         shortcut={{ modifiers: ["cmd", "shift"], key: "w" }}
       />
       <Action.OpenInBrowser
-        title="Check on Google"
+        title="View on Google"
         url={googleSearchUrl}
         icon={Icon.MagnifyingGlass}
         shortcut={{ modifiers: ["cmd", "shift"], key: "g" }}

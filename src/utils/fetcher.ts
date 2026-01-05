@@ -20,7 +20,6 @@ export interface StreamedHeadResult {
   truncated: boolean;
 }
 
-
 /**
  * Streams a response and extracts only the <head> content to minimize memory usage.
  * Stops reading once </head> is found or MAX_HEAD_BYTES is reached.
@@ -122,37 +121,40 @@ export async function fetchHeadOnly(url: string, timeout: number = TIMEOUTS.HTML
  * Attempts to fetch with HTTPS first, falls back to HTTP if HTTPS fails.
  * This handles sites that don't support SSL/TLS.
  */
-export async function fetchHeadOnlyWithFallback(url: string, timeout: number = TIMEOUTS.HTML_FETCH): Promise<StreamedHeadResult> {
+export async function fetchHeadOnlyWithFallback(
+  url: string,
+  timeout: number = TIMEOUTS.HTML_FETCH,
+): Promise<StreamedHeadResult> {
   const urlObj = new URL(url);
-  
+
   // If explicitly using http://, don't try https first
   if (urlObj.protocol === "http:") {
     log.log("fetchHeadOnlyWithFallback:http-explicit", { url });
     return fetchHeadOnly(url, timeout);
   }
-  
+
   // Try HTTPS first
   try {
     return await fetchHeadOnly(url, timeout);
   } catch (httpsError) {
     // If HTTPS failed, try HTTP as fallback
     const httpUrl = url.replace(/^https:\/\//i, "http://");
-    log.log("fetchHeadOnlyWithFallback:https-failed-trying-http", { 
-      originalUrl: url, 
+    log.log("fetchHeadOnlyWithFallback:https-failed-trying-http", {
+      originalUrl: url,
       httpUrl,
-      error: httpsError instanceof Error ? httpsError.message : String(httpsError)
+      error: httpsError instanceof Error ? httpsError.message : String(httpsError),
     });
-    
+
     try {
       const result = await fetchHeadOnly(httpUrl, timeout);
       log.log("fetchHeadOnlyWithFallback:http-success", { httpUrl });
       return result;
     } catch (httpError) {
       // Both failed, throw the original HTTPS error
-      log.error("fetchHeadOnlyWithFallback:both-failed", { 
+      log.error("fetchHeadOnlyWithFallback:both-failed", {
         url,
         httpsError: httpsError instanceof Error ? httpsError.message : String(httpsError),
-        httpError: httpError instanceof Error ? httpError.message : String(httpError)
+        httpError: httpError instanceof Error ? httpError.message : String(httpError),
       });
       throw httpsError;
     }

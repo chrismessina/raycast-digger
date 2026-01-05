@@ -10,7 +10,19 @@ export interface DiggerResult {
   history?: HistoryData;
   dataFeeds?: DataFeedsData;
   hostMetadata?: HostMetadataData;
+  botProtection?: BotProtectionData;
   fetchedAt: number;
+}
+
+export interface BotProtectionData {
+  /** Whether bot protection was detected */
+  detected: boolean;
+  /** The type of protection detected (e.g., "cloudflare", "akamai") */
+  provider?: string;
+  /** Human-readable name of the provider */
+  providerName?: string;
+  /** Whether the response appears to be a challenge page rather than real content */
+  isChallengePage: boolean;
 }
 
 export interface CacheEntry {
@@ -41,6 +53,7 @@ export interface DiscoverabilityData {
   canonical?: string;
   alternates?: Array<{ href: string; hreflang?: string; type?: string }>;
   sitemap?: string;
+  llmsTxt?: boolean;
   rss?: string;
   atom?: string;
 }

@@ -7,17 +7,18 @@ import { CacheActions } from "../actions/CacheActions";
 import { WaybackMachineActions } from "../actions/WaybackMachineActions";
 import { formatDate } from "../utils/formatters";
 
-interface HistoryEvolutionProps {
+interface WaybackMachineProps {
   data: DiggerResult | null;
   onRefresh: () => void;
   progress: number;
 }
 
-export function HistoryEvolution({ data, onRefresh, progress }: HistoryEvolutionProps) {
+export function WaybackMachine({ data, onRefresh, progress }: WaybackMachineProps) {
+  // Show loading state when no data yet
   if (!data) {
     return (
       <List.Item
-        title="History & Evolution"
+        title="Wayback Machine"
         icon={progress < 1 ? getProgressIcon(progress, Color.Blue) : Icon.Clock}
         detail={
           <List.Item.Detail
@@ -36,19 +37,20 @@ export function HistoryEvolution({ data, onRefresh, progress }: HistoryEvolution
   const { history } = data;
   const hasSnapshots = !!(history?.waybackMachineSnapshots && history.waybackMachineSnapshots > 0);
   const isRateLimited = history?.rateLimited === true;
-
-  const subtitle = isRateLimited && !hasSnapshots
-    ? "Rate limited"
-    : hasSnapshots
-      ? `${history!.waybackMachineSnapshots!.toLocaleString()} snapshots`
-      : "No archive data";
+  const isStillLoading = progress < 1;
 
   return (
     <List.Item
       title="Wayback Machine"
-      subtitle={subtitle}
-      icon={Icon.Clock}
-      detail={<HistoryEvolutionDetail history={history} hasSnapshots={hasSnapshots} isRateLimited={isRateLimited} />}
+      icon={isStillLoading ? getProgressIcon(progress, Color.Blue) : Icon.Clock}
+      detail={
+        <WaybackMachineDetail
+          history={history}
+          hasSnapshots={hasSnapshots}
+          isRateLimited={isRateLimited}
+          isStillLoading={isStillLoading}
+        />
+      }
       actions={
         <ActionPanel>
           <ActionPanel.Section title="Wayback Machine">
@@ -69,13 +71,14 @@ export function HistoryEvolution({ data, onRefresh, progress }: HistoryEvolution
   );
 }
 
-interface HistoryEvolutionDetailProps {
+interface WaybackMachineDetailProps {
   history: DiggerResult["history"];
   hasSnapshots: boolean;
   isRateLimited: boolean;
+  isStillLoading: boolean;
 }
 
-function HistoryEvolutionDetail({ history, hasSnapshots, isRateLimited }: HistoryEvolutionDetailProps) {
+function WaybackMachineDetail({ history, hasSnapshots, isRateLimited, isStillLoading }: WaybackMachineDetailProps) {
   const getArchiveAge = (): string => {
     if (!history?.firstSeen || !history?.lastSeen) return "";
     try {
@@ -116,6 +119,15 @@ function HistoryEvolutionDetail({ history, hasSnapshots, isRateLimited }: Histor
                   text="View on Wayback Machine"
                 />
               )}
+            </>
+          ) : isStillLoading ? (
+            <>
+              <List.Item.Detail.Metadata.Label
+                title="Status"
+                text="Checking Wayback Machine..."
+                icon={{ source: Icon.Clock, tintColor: Color.Blue }}
+              />
+              <List.Item.Detail.Metadata.Label title="" text="Querying the Internet Archive for historical snapshots" />
             </>
           ) : isRateLimited ? (
             <>

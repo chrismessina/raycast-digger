@@ -8,7 +8,7 @@ import { Discoverability } from "./components/Discoverability";
 import { ResourcesAssets } from "./components/ResourcesAssets";
 import { NetworkingSecurity } from "./components/NetworkingSecurity";
 import { DNSCertificates } from "./components/DNSCertificates";
-import { HistoryEvolution } from "./components/HistoryEvolution";
+import { WaybackMachine } from "./components/WaybackMachine";
 import { DataFeedsAPI } from "./components/DataFeedsAPI";
 
 export type { LoadingProgress };
@@ -103,7 +103,7 @@ export default function Command(props: { arguments: Arguments }) {
       <ResourcesAssets data={data} onRefresh={refetch} progress={progress.resources} />
       <NetworkingSecurity data={data} onRefresh={refetch} progress={progress.networking} />
       <DNSCertificates data={data} onRefresh={refetch} certificateInfo={certificateInfo} progress={progress.dns} />
-      <HistoryEvolution data={data} onRefresh={refetch} progress={progress.history} />
+      <WaybackMachine data={data} onRefresh={refetch} progress={progress.history} />
       <DataFeedsAPI data={data} onRefresh={refetch} progress={progress.dataFeeds} />
     </List>
   );

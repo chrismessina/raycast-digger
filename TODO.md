@@ -27,7 +27,7 @@ src/
 │   ├── NetworkingSecurity.tsx    # HTTP headers, security headers
 │   ├── DNSCertificates.tsx       # DNS records, TLS cert info
 │   ├── PerformanceSignals.tsx    # Timing, resource hints
-│   ├── HistoryEvolution.tsx      # Wayback Machine snapshots
+│   ├── WaybackMachine.tsx      # Wayback Machine snapshots
 │   └── DataFeedsAPI.tsx          # Structured data, API hints
 ├── hooks/
 │   ├── useFetchSite.ts           # Main fetch orchestrator
@@ -62,7 +62,7 @@ src/
   - `NetworkingData`
   - `DNSData`
   - `PerformanceData`
-  - `HistoryData`
+  - `WaybackMachineData`
   - `DataFeedsData`
 
 ### 1.2 URL Utilities ✅
@@ -266,7 +266,7 @@ src/
 
 ### 6.1 History & Evolution
 
-- [x] Create `src/components/HistoryEvolution.tsx`
+- [x] Create `src/components/WaybackMachine.tsx`
 - [x] Wayback Machine API integration:
   - First capture date
   - Last capture date

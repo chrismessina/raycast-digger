@@ -4,6 +4,7 @@ import { DiggerResult } from "../types";
 import { Actions } from "../actions";
 import { truncateText } from "../utils/formatters";
 import { isUrl, resolveUrl } from "../utils/urlUtils";
+import { getDeniedAccessMessage } from "../utils/botDetection";
 
 interface MetadataSemanticsProps {
   data: DiggerResult | null;
@@ -34,7 +35,8 @@ export function MetadataSemantics({ data, onRefresh, progress }: MetadataSemanti
     );
   }
 
-  const { overview, metadata } = data;
+  const { overview, metadata, botProtection } = data;
+  const isChallengePage = botProtection?.isChallengePage ?? false;
 
   const hasOpenGraph = !!(metadata?.openGraph && Object.keys(metadata.openGraph).length > 0);
   const hasTwitterCard = !!(metadata?.twitterCard && Object.keys(metadata.twitterCard).length > 0);
@@ -47,8 +49,21 @@ export function MetadataSemantics({ data, onRefresh, progress }: MetadataSemanti
     <List.Item
       title="Metadata"
       icon={listIcon}
-      accessories={hasMetadata ? [{ icon: { source: Icon.Check, tintColor: Color.Green } }] : undefined}
-      detail={<MetadataSemanticsDetail data={data} hasOpenGraph={hasOpenGraph} hasTwitterCard={hasTwitterCard} />}
+      accessories={
+        isChallengePage
+          ? [{ icon: { source: Icon.ExclamationMark, tintColor: Color.Orange } }]
+          : hasMetadata
+            ? [{ icon: { source: Icon.Check, tintColor: Color.Green } }]
+            : undefined
+      }
+      detail={
+        <MetadataSemanticsDetail
+          data={data}
+          hasOpenGraph={hasOpenGraph}
+          hasTwitterCard={hasTwitterCard}
+          isChallengePage={isChallengePage}
+        />
+      }
       actions={<Actions data={data} url={data.url} onRefresh={onRefresh} />}
     />
   );
@@ -58,17 +73,26 @@ interface MetadataSemanticsDetailProps {
   data: DiggerResult;
   hasOpenGraph: boolean;
   hasTwitterCard: boolean;
+  isChallengePage: boolean;
 }
 
-function MetadataSemanticsDetail({ data, hasOpenGraph, hasTwitterCard }: MetadataSemanticsDetailProps) {
-  const { overview, metadata, discoverability, url } = data;
+function MetadataSemanticsDetail({
+  data,
+  hasOpenGraph,
+  hasTwitterCard,
+  isChallengePage,
+}: MetadataSemanticsDetailProps) {
+  const { overview, metadata, discoverability, url, botProtection } = data;
+  const deniedMessage = getDeniedAccessMessage(botProtection?.provider);
 
   const isImageField = (key: string) => key.toLowerCase().includes("image");
 
   const renderMetadataItem = (key: string, value: string) => {
     if (isImageField(key)) {
       const absoluteUrl = resolveUrl(value, url);
-      return <List.Item.Detail.Metadata.Link key={key} title={key} target={absoluteUrl} text={truncateText(value, 60)} />;
+      return (
+        <List.Item.Detail.Metadata.Link key={key} title={key} target={absoluteUrl} text={truncateText(value, 60)} />
+      );
     }
     return isUrl(value) ? (
       <List.Item.Detail.Metadata.Link key={key} title={key} target={value} text={truncateText(value, 60)} />
@@ -84,20 +108,26 @@ function MetadataSemanticsDetail({ data, hasOpenGraph, hasTwitterCard }: Metadat
           <List.Item.Detail.Metadata.Label title="Basic Metadata" />
           <List.Item.Detail.Metadata.Label
             title="Title"
-            text={overview?.title || "N/A"}
+            text={isChallengePage ? deniedMessage : overview?.title || "N/A"}
             icon={
-              overview?.title
-                ? { source: Icon.Check, tintColor: Color.Green }
-                : { source: Icon.Xmark, tintColor: Color.Red }
+              isChallengePage
+                ? { source: Icon.ExclamationMark, tintColor: Color.Orange }
+                : overview?.title
+                  ? { source: Icon.Check, tintColor: Color.Green }
+                  : { source: Icon.Xmark, tintColor: Color.Red }
             }
           />
           <List.Item.Detail.Metadata.Label
             title="Description"
-            text={overview?.description ? truncateText(overview.description, 80) : "N/A"}
+            text={
+              isChallengePage ? deniedMessage : overview?.description ? truncateText(overview.description, 80) : "N/A"
+            }
             icon={
-              overview?.description
-                ? { source: Icon.Check, tintColor: Color.Green }
-                : { source: Icon.Xmark, tintColor: Color.Red }
+              isChallengePage
+                ? { source: Icon.ExclamationMark, tintColor: Color.Orange }
+                : overview?.description
+                  ? { source: Icon.Check, tintColor: Color.Green }
+                  : { source: Icon.Xmark, tintColor: Color.Red }
             }
           />
           {discoverability?.canonical ? (
@@ -127,31 +157,45 @@ function MetadataSemanticsDetail({ data, hasOpenGraph, hasTwitterCard }: Metadat
           <List.Item.Detail.Metadata.Label
             title="Open Graph"
             icon={
-              hasOpenGraph
-                ? { source: Icon.Check, tintColor: Color.Green }
-                : { source: Icon.Xmark, tintColor: Color.Red }
+              isChallengePage
+                ? { source: Icon.ExclamationMark, tintColor: Color.Orange }
+                : hasOpenGraph
+                  ? { source: Icon.Check, tintColor: Color.Green }
+                  : { source: Icon.Xmark, tintColor: Color.Red }
             }
           />
           {hasOpenGraph &&
             Object.entries(metadata!.openGraph!)
               .slice(0, 6)
               .map(([key, value]) => renderMetadataItem(key, value))}
-          {!hasOpenGraph && <List.Item.Detail.Metadata.Label title="" text="No Open Graph tags found" />}
+          {!hasOpenGraph && (
+            <List.Item.Detail.Metadata.Label
+              title=""
+              text={isChallengePage ? deniedMessage : "No Open Graph tags found"}
+            />
+          )}
 
           <List.Item.Detail.Metadata.Separator />
           <List.Item.Detail.Metadata.Label
             title="Twitter Card"
             icon={
-              hasTwitterCard
-                ? { source: Icon.Check, tintColor: Color.Green }
-                : { source: Icon.Xmark, tintColor: Color.Red }
+              isChallengePage
+                ? { source: Icon.ExclamationMark, tintColor: Color.Orange }
+                : hasTwitterCard
+                  ? { source: Icon.Check, tintColor: Color.Green }
+                  : { source: Icon.Xmark, tintColor: Color.Red }
             }
           />
           {hasTwitterCard &&
             Object.entries(metadata!.twitterCard!)
               .slice(0, 6)
               .map(([key, value]) => renderMetadataItem(key, value))}
-          {!hasTwitterCard && <List.Item.Detail.Metadata.Label title="" text="No Twitter Card tags found" />}
+          {!hasTwitterCard && (
+            <List.Item.Detail.Metadata.Label
+              title=""
+              text={isChallengePage ? deniedMessage : "No Twitter Card tags found"}
+            />
+          )}
         </List.Item.Detail.Metadata>
       }
     />

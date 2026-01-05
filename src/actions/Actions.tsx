@@ -20,11 +20,7 @@ export function Actions({ data, url, onRefresh, sectionActions }: ActionsProps) 
         <BrowserActions url={url} />
       </ActionPanel.Section>
 
-      {sectionActions && (
-        <ActionPanel.Section title="View">
-          {sectionActions}
-        </ActionPanel.Section>
-      )}
+      {sectionActions && <ActionPanel.Section title="View">{sectionActions}</ActionPanel.Section>}
 
       <ActionPanel.Section title="Copy">
         <CopyActions data={data} url={url} />

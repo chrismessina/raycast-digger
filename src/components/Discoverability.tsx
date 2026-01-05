@@ -39,14 +39,16 @@ export function Discoverability({ data, onRefresh, progress }: DiscoverabilityPr
   const hasRobots = !!discoverability?.robots;
   const hasCanonical = !!discoverability?.canonical;
   const hasSitemap = !!discoverability?.sitemap;
+  const hasLlmsTxt = !!discoverability?.llmsTxt;
   const hasAlternates = !!(discoverability?.alternates && discoverability.alternates.length > 0);
   const hasDiscoverability = hasCanonical || hasSitemap;
 
   // Resolve sitemap URL to absolute URL (handles relative URLs like /sitemap.xml)
   const sitemapUrl = discoverability?.sitemap ? resolveUrl(discoverability.sitemap, data.url) : undefined;
 
-  // Construct robots.txt URL from base URL
+  // Construct robots.txt and llms.txt URLs from base URL
   const robotsUrl = getRootResourceUrl("robots.txt", data.url);
+  const llmsTxtUrl = getRootResourceUrl("llms.txt", data.url);
 
   // Show progress icon while loading, then show magnifying glass icon
   const listIcon = isLoading ? getProgressIcon(progress, Color.Blue) : Icon.MagnifyingGlass;
@@ -62,6 +64,8 @@ export function Discoverability({ data, onRefresh, progress }: DiscoverabilityPr
           hasRobots={hasRobots}
           hasCanonical={hasCanonical}
           hasSitemap={hasSitemap}
+          hasLlmsTxt={hasLlmsTxt}
+          llmsTxtUrl={llmsTxtUrl}
           hasAlternates={hasAlternates}
         />
       }
@@ -71,10 +75,7 @@ export function Discoverability({ data, onRefresh, progress }: DiscoverabilityPr
           url={data.url}
           onRefresh={onRefresh}
           sectionActions={
-            <DiscoverabilityActions
-              sitemapUrl={sitemapUrl}
-              robotsUrl={robotsUrl}
-            />
+            <DiscoverabilityActions sitemapUrl={sitemapUrl} robotsUrl={robotsUrl} llmsTxtUrl={llmsTxtUrl} />
           }
         />
       }
@@ -87,6 +88,8 @@ interface DiscoverabilityDetailProps {
   hasRobots: boolean;
   hasCanonical: boolean;
   hasSitemap: boolean;
+  hasLlmsTxt: boolean;
+  llmsTxtUrl: string | undefined;
   hasAlternates: boolean;
 }
 
@@ -95,6 +98,8 @@ function DiscoverabilityDetail({
   hasRobots,
   hasCanonical,
   hasSitemap,
+  hasLlmsTxt,
+  llmsTxtUrl,
   hasAlternates,
 }: DiscoverabilityDetailProps) {
   const { discoverability } = data;
@@ -111,6 +116,15 @@ function DiscoverabilityDetail({
               hasRobots ? { source: Icon.Check, tintColor: Color.Green } : { source: Icon.Xmark, tintColor: Color.Red }
             }
           />
+          {hasLlmsTxt && llmsTxtUrl ? (
+            <List.Item.Detail.Metadata.Link title="LLMs.txt" target={llmsTxtUrl} text={truncateText(llmsTxtUrl, 50)} />
+          ) : (
+            <List.Item.Detail.Metadata.Label
+              title="LLMs.txt"
+              text="Not found"
+              icon={{ source: Icon.Xmark, tintColor: Color.Red }}
+            />
+          )}
           {hasCanonical ? (
             <List.Item.Detail.Metadata.Link
               title="Canonical URL"

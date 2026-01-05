@@ -3,6 +3,7 @@ import { getProgressIcon } from "@raycast/utils";
 import { DiggerResult } from "../types";
 import { Actions } from "../actions";
 import { formatBytes, getStatusText } from "../utils/formatters";
+import { getDeniedAccessMessage } from "../utils/botDetection";
 
 interface OverviewProps {
   data: DiggerResult | null;
@@ -37,7 +38,7 @@ export function Overview({ data, onRefresh, overallProgress }: OverviewProps) {
     );
   }
 
-  const { overview, networking } = data;
+  const { networking } = data;
 
   const statusCode = networking?.statusCode;
   const statusText = statusCode ? `${statusCode} ${getStatusText(statusCode)}` : "Unknown";
@@ -50,7 +51,6 @@ export function Overview({ data, onRefresh, overallProgress }: OverviewProps) {
   return (
     <List.Item
       title="Overview"
-      subtitle={overview?.title || data.url}
       icon={progressIcon}
       detail={
         <OverviewDetail
@@ -75,13 +75,19 @@ interface OverviewDetailProps {
 }
 
 function OverviewDetail({ data, statusText, contentType, contentLength, finalUrl }: OverviewDetailProps) {
-  const { overview, networking, performance } = data;
+  const { overview, networking, performance, botProtection } = data;
+  const isChallengePage = botProtection?.isChallengePage ?? false;
+
+  // Determine the title to display
+  const displayTitle = isChallengePage
+    ? getDeniedAccessMessage(botProtection?.provider)
+    : overview?.title || "Untitled";
 
   return (
     <List.Item.Detail
       metadata={
         <List.Item.Detail.Metadata>
-          <List.Item.Detail.Metadata.Label title={overview?.title || "Untitled"} />
+          <List.Item.Detail.Metadata.Label title={displayTitle} />
           {overview?.description && <List.Item.Detail.Metadata.Label title="" text={overview.description} />}
           <List.Item.Detail.Metadata.Separator />
           <List.Item.Detail.Metadata.Label title="Response Details" />
