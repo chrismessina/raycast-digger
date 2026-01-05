@@ -31,6 +31,8 @@ export const CACHE = {
 export const LIMITS = {
   /** Maximum bytes to read when extracting <head> content */
   MAX_HEAD_BYTES: 512 * 1024, // 512KB
+  /** Minimum bytes to read before honoring </head> tag (handles JS-heavy sites with tiny initial heads) */
+  MIN_HEAD_BYTES: 16 * 1024, // 16KB
   /** Default port for TLS certificate checks */
   TLS_PORT: 443,
 } as const;

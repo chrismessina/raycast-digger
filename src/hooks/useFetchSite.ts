@@ -1,12 +1,12 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import * as cheerio from "cheerio";
 import { showToast, Toast } from "@raycast/api";
-import { fetchHeadOnlyWithFallback, fetchWithTimeout } from "../utils/fetcher";
+import { fetchHeadOnlyWithFallback, fetchWithTimeout, fetchTextResource } from "../utils/fetcher";
 import { normalizeUrl, getRootResourceUrl } from "../utils/urlUtils";
 import { fetchWaybackMachineData } from "../utils/waybackUtils";
 import { fetchHostMetadata } from "../utils/hostMetaUtils";
 import { useCache } from "./useCache";
-import { DiggerResult, OverviewData, MetadataData, DiscoverabilityData, BotProtectionData } from "../types";
+import { DiggerResult, OverviewData, MetadataData, DiscoverabilityData, BotProtectionData, ImageAsset } from "../types";
 import { detectBotProtection } from "../utils/botDetection";
 import { performDNSLookup, getTLSCertificateInfo, CertificateInfo } from "../utils/dnsUtils";
 import { getLogger } from "../utils/logger";
@@ -43,15 +43,26 @@ export function useFetchSite(url?: string) {
   const [progress, setProgress] = useState<LoadingProgress>(initialProgress);
   const { getFromCache, saveToCache } = useCache();
 
+  // Store abort controller in ref so we can cancel previous fetches
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const fetchSite = useCallback(
     async (targetUrl: string) => {
       log.log("fetch:start", { targetUrl });
+
+      // Cancel any previous fetch in progress
+      if (abortControllerRef.current) {
+        log.log("fetch:cancelling-previous", { targetUrl });
+        abortControllerRef.current.abort();
+      }
+
+      // Create new AbortController for this fetch
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
       setIsLoading(true);
       setError(null);
       setProgress(initialProgress);
-
-      // Create an AbortController to cancel async operations if main fetch fails
-      const abortController = new AbortController();
 
       // Helper to update progress for a specific category
       const updateProgress = (category: keyof LoadingProgress, value: number) => {
@@ -97,6 +108,12 @@ export function useFetchSite(url?: string) {
           return;
         }
         log.log("cache:miss", { url: normalizedUrl });
+
+        // Check if we were aborted while checking cache (React double-invoke)
+        if (abortController.signal.aborted) {
+          log.log("fetch:aborted-before-fetch", { url: normalizedUrl });
+          return;
+        }
 
         // Initialize data with URL immediately
         setData({ url: normalizedUrl, fetchedAt: Date.now() } as DiggerResult);
@@ -153,10 +170,10 @@ export function useFetchSite(url?: string) {
         const robotsUrl = getRootResourceUrl("robots.txt", normalizedUrl);
         const llmsTxtUrl = getRootResourceUrl("llms.txt", normalizedUrl);
         const sitemapUrl = getRootResourceUrl("sitemap.xml", normalizedUrl);
-        const [htmlResult, , llmsTxtResult, sitemapResult] = await Promise.allSettled([
-          fetchHeadOnlyWithFallback(normalizedUrl),
-          robotsUrl ? fetchWithTimeout(robotsUrl).catch(() => null) : Promise.resolve(null),
-          llmsTxtUrl ? fetchWithTimeout(llmsTxtUrl).catch(() => null) : Promise.resolve(null),
+        const [htmlResult, robotsTxtResult, llmsTxtResult, sitemapResult] = await Promise.allSettled([
+          fetchHeadOnlyWithFallback(normalizedUrl, undefined, abortController.signal),
+          robotsUrl ? fetchTextResource(robotsUrl).catch(() => null) : Promise.resolve(null),
+          llmsTxtUrl ? fetchTextResource(llmsTxtUrl).catch(() => null) : Promise.resolve(null),
           sitemapUrl ? fetchWithTimeout(sitemapUrl).catch(() => null) : Promise.resolve(null),
         ]);
 
@@ -311,9 +328,22 @@ export function useFetchSite(url?: string) {
 
         const discoverability: DiscoverabilityData = {
           robots: $('meta[name="robots"]').attr("content"),
+          robotsTxt:
+            robotsTxtResult.status === "fulfilled" &&
+            !!robotsTxtResult.value &&
+            robotsTxtResult.value.exists === true,
           canonical: $('link[rel="canonical"]').attr("href"),
-          sitemap: sitemapResult.status === "fulfilled" && sitemapResult.value ? sitemapUrl : undefined,
-          llmsTxt: llmsTxtResult.status === "fulfilled" && !!llmsTxtResult.value,
+          sitemap:
+            sitemapResult.status === "fulfilled" &&
+            sitemapResult.value &&
+            sitemapResult.value.status >= 200 &&
+            sitemapResult.value.status < 300
+              ? sitemapUrl
+              : undefined,
+          llmsTxt:
+            llmsTxtResult.status === "fulfilled" &&
+            !!llmsTxtResult.value &&
+            llmsTxtResult.value.exists === true,
         };
 
         const alternates: Array<{ href: string; hreflang?: string; type?: string }> = [];
@@ -370,18 +400,118 @@ export function useFetchSite(url?: string) {
             }
           });
 
-        const images: Array<{ src: string; alt?: string }> = [];
-        $("img[src]")
-          .slice(0, MAX_RESOURCES)
-          .each((_, el) => {
-            const src = $(el).attr("src");
-            if (src) {
+        // Comprehensive image extraction from multiple sources
+        const images: ImageAsset[] = [];
+        const resolveUrl = (url: string) => {
+          if (!url) return "";
+          try {
+            return url.startsWith("http") ? url : new URL(url, normalizedUrl).href;
+          } catch {
+            return url;
+          }
+        };
+
+        // 1. Favicon and icon links
+        $('link[rel*="icon"]').each((_, el) => {
+          const href = $(el).attr("href");
+          const rel = $(el).attr("rel") || "";
+          if (href) {
+            let type: ImageAsset["type"] = "favicon";
+            if (rel.includes("apple-touch-icon")) {
+              type = "apple-touch-icon";
+            } else if (rel.includes("mask-icon")) {
+              type = "mask-icon";
+            }
+            images.push({
+              src: resolveUrl(href),
+              type,
+              sizes: $(el).attr("sizes"),
+              mimeType: $(el).attr("type"),
+            });
+          }
+        });
+
+        // 3. Open Graph images
+        $('meta[property="og:image"], meta[property="og:image:url"]').each((_, el) => {
+          const content = $(el).attr("content");
+          if (content) {
+            images.push({
+              src: resolveUrl(content),
+              type: "og",
+            });
+          }
+        });
+
+        // 4. Twitter Card images
+        $('meta[name="twitter:image"], meta[name="twitter:image:src"], meta[name="twitter:player:image"]').each(
+          (_, el) => {
+            const content = $(el).attr("content");
+            if (content) {
               images.push({
-                src,
-                alt: $(el).attr("alt"),
+                src: resolveUrl(content),
+                type: "twitter",
               });
             }
-          });
+          },
+        );
+
+        // 5. Microsoft application tile image
+        $('meta[name="msapplication-TileImage"]').each((_, el) => {
+          const content = $(el).attr("content");
+          if (content) {
+            images.push({
+              src: resolveUrl(content),
+              type: "msapplication",
+            });
+          }
+        });
+
+        // 6. JSON-LD structured data images
+        if (jsonLdScripts.length > 0) {
+          const extractJsonLdImages = (obj: unknown, depth = 0): void => {
+            if (depth > 5 || !obj || typeof obj !== "object") return;
+            const record = obj as Record<string, unknown>;
+
+            // Check for image properties
+            const imageProps = ["image", "logo", "thumbnailUrl", "photo"];
+            for (const prop of imageProps) {
+              const value = record[prop];
+              if (typeof value === "string") {
+                images.push({ src: resolveUrl(value), type: "json-ld" });
+              } else if (Array.isArray(value)) {
+                for (const item of value) {
+                  if (typeof item === "string") {
+                    images.push({ src: resolveUrl(item), type: "json-ld" });
+                  } else if (item && typeof item === "object" && "url" in item) {
+                    const url = (item as Record<string, unknown>).url;
+                    if (typeof url === "string") {
+                      images.push({ src: resolveUrl(url), type: "json-ld" });
+                    }
+                  }
+                }
+              } else if (value && typeof value === "object" && "url" in value) {
+                const url = (value as Record<string, unknown>).url;
+                if (typeof url === "string") {
+                  images.push({ src: resolveUrl(url), type: "json-ld" });
+                }
+              }
+            }
+
+            // Recurse into nested objects
+            for (const key of Object.keys(record)) {
+              if (record[key] && typeof record[key] === "object") {
+                extractJsonLdImages(record[key], depth + 1);
+              }
+            }
+          };
+
+          for (const ld of jsonLdScripts) {
+            extractJsonLdImages(ld);
+          }
+        }
+
+        // 7. Extract theme-color
+        const themeColor = $('meta[name="theme-color"]').attr("content");
 
         const links: Array<{ href: string; rel?: string }> = [];
         $('link[rel]:not([rel="stylesheet"]):not([rel="alternate"])')
@@ -434,6 +564,7 @@ export function useFetchSite(url?: string) {
             scripts: scripts.length > 0 ? scripts : undefined,
             images: images.length > 0 ? images : undefined,
             links: links.length > 0 ? links : undefined,
+            themeColor,
           },
           dataFeeds:
             rssFeeds.length > 0 || atomFeeds.length > 0 || jsonFeeds.length > 0
@@ -532,6 +663,7 @@ export function useFetchSite(url?: string) {
             scripts: scripts.length > 0 ? scripts : undefined,
             images: images.length > 0 ? images : undefined,
             links: links.length > 0 ? links : undefined,
+            themeColor,
           },
           networking: {
             statusCode: status,
@@ -562,6 +694,12 @@ export function useFetchSite(url?: string) {
         await saveToCache(normalizedUrl, result);
         log.log("fetch:complete", { url: normalizedUrl });
       } catch (err) {
+        // Check if this was an abort - don't show error for cancelled fetches
+        if (abortController.signal.aborted) {
+          log.log("fetch:aborted", { targetUrl });
+          return;
+        }
+
         const errorMessage = err instanceof Error ? err.message : "Failed to fetch site data";
         log.error("fetch:error", { error: errorMessage });
         // Ensure async operations are cancelled on any error
@@ -573,7 +711,10 @@ export function useFetchSite(url?: string) {
           message: errorMessage,
         });
       } finally {
-        setIsLoading(false);
+        // Only update loading state if this fetch wasn't aborted
+        if (!abortController.signal.aborted) {
+          setIsLoading(false);
+        }
       }
     },
     [getFromCache, saveToCache],

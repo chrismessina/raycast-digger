@@ -37,6 +37,7 @@ export function Discoverability({ data, onRefresh, progress }: DiscoverabilityPr
   const { discoverability } = data;
 
   const hasRobots = !!discoverability?.robots;
+  const hasRobotsTxt = !!discoverability?.robotsTxt;
   const hasCanonical = !!discoverability?.canonical;
   const hasSitemap = !!discoverability?.sitemap;
   const hasLlmsTxt = !!discoverability?.llmsTxt;
@@ -62,6 +63,7 @@ export function Discoverability({ data, onRefresh, progress }: DiscoverabilityPr
         <DiscoverabilityDetail
           data={data}
           hasRobots={hasRobots}
+          hasRobotsTxt={hasRobotsTxt}
           hasCanonical={hasCanonical}
           hasSitemap={hasSitemap}
           hasLlmsTxt={hasLlmsTxt}
@@ -75,7 +77,11 @@ export function Discoverability({ data, onRefresh, progress }: DiscoverabilityPr
           url={data.url}
           onRefresh={onRefresh}
           sectionActions={
-            <DiscoverabilityActions sitemapUrl={sitemapUrl} robotsUrl={robotsUrl} llmsTxtUrl={llmsTxtUrl} />
+            <DiscoverabilityActions
+              sitemapUrl={sitemapUrl}
+              robotsUrl={hasRobotsTxt ? robotsUrl : undefined}
+              llmsTxtUrl={hasLlmsTxt ? llmsTxtUrl : undefined}
+            />
           }
         />
       }
@@ -86,6 +92,7 @@ export function Discoverability({ data, onRefresh, progress }: DiscoverabilityPr
 interface DiscoverabilityDetailProps {
   data: DiggerResult;
   hasRobots: boolean;
+  hasRobotsTxt: boolean;
   hasCanonical: boolean;
   hasSitemap: boolean;
   hasLlmsTxt: boolean;
@@ -96,6 +103,7 @@ interface DiscoverabilityDetailProps {
 function DiscoverabilityDetail({
   data,
   hasRobots,
+  hasRobotsTxt,
   hasCanonical,
   hasSitemap,
   hasLlmsTxt,
@@ -109,22 +117,6 @@ function DiscoverabilityDetail({
       metadata={
         <List.Item.Detail.Metadata>
           <List.Item.Detail.Metadata.Label title="SEO & Crawling" />
-          <List.Item.Detail.Metadata.Label
-            title="Robots Meta Tag"
-            text={discoverability?.robots || "Not specified"}
-            icon={
-              hasRobots ? { source: Icon.Check, tintColor: Color.Green } : { source: Icon.Xmark, tintColor: Color.Red }
-            }
-          />
-          {hasLlmsTxt && llmsTxtUrl ? (
-            <List.Item.Detail.Metadata.Link title="LLMs.txt" target={llmsTxtUrl} text={truncateText(llmsTxtUrl, 50)} />
-          ) : (
-            <List.Item.Detail.Metadata.Label
-              title="LLMs.txt"
-              text="Not found"
-              icon={{ source: Icon.Xmark, tintColor: Color.Red }}
-            />
-          )}
           {hasCanonical ? (
             <List.Item.Detail.Metadata.Link
               title="Canonical URL"
@@ -138,20 +130,38 @@ function DiscoverabilityDetail({
               icon={{ source: Icon.Xmark, tintColor: Color.Red }}
             />
           )}
-          {hasSitemap ? (
-            <List.Item.Detail.Metadata.Link
-              title="Sitemap"
-              target={discoverability!.sitemap!}
-              text={truncateText(discoverability!.sitemap!, 50)}
-            />
+          <List.Item.Detail.Metadata.Label
+            title="Robots Meta Tag"
+            text={discoverability?.robots || "Not specified"}
+            icon={
+              hasRobots ? { source: Icon.Check, tintColor: Color.Green } : { source: Icon.Xmark, tintColor: Color.Red }
+            }
+          />
+          <List.Item.Detail.Metadata.Label
+            title="Sitemap"
+            text={discoverability?.sitemap ? "Found" : "Not found"}
+            icon={
+              hasSitemap ? { source: Icon.Check, tintColor: Color.Green } : { source: Icon.Xmark, tintColor: Color.Red }
+            }
+          />
+          <List.Item.Detail.Metadata.Label
+            title="robots.txt"
+            text={discoverability?.robotsTxt ? "Found" : "Not found"}
+            icon={
+              hasRobotsTxt
+                ? { source: Icon.Check, tintColor: Color.Green }
+                : { source: Icon.Xmark, tintColor: Color.Red }
+            }
+          />
+          {hasLlmsTxt && llmsTxtUrl ? (
+            <List.Item.Detail.Metadata.Link title="LLMs.txt" target={llmsTxtUrl} text={truncateText(llmsTxtUrl, 50)} />
           ) : (
             <List.Item.Detail.Metadata.Label
-              title="Sitemap"
+              title="LLMs.txt"
               text="Not found"
               icon={{ source: Icon.Xmark, tintColor: Color.Red }}
             />
           )}
-
           <List.Item.Detail.Metadata.Separator />
           <List.Item.Detail.Metadata.Label
             title="Alternate Links"

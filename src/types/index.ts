@@ -50,6 +50,7 @@ export interface MetadataData {
 
 export interface DiscoverabilityData {
   robots?: string;
+  robotsTxt?: boolean;
   canonical?: string;
   alternates?: Array<{ href: string; hreflang?: string; type?: string }>;
   sitemap?: string;
@@ -58,11 +59,39 @@ export interface DiscoverabilityData {
   atom?: string;
 }
 
+/** Image asset type indicating the source of the image */
+export type ImageAssetType =
+  | "favicon" // <link rel="icon"> or <link rel="shortcut icon">
+  | "apple-touch-icon" // <link rel="apple-touch-icon">
+  | "mask-icon" // <link rel="mask-icon"> (Safari pinned tabs)
+  | "og" // <meta property="og:image">
+  | "twitter" // <meta name="twitter:image">
+  | "msapplication" // <meta name="msapplication-TileImage">
+  | "json-ld" // From JSON-LD structured data
+  | "manifest"; // From manifest.json icons
+
+/** Represents an image asset found in the head of the page */
+export interface ImageAsset {
+  /** URL of the image */
+  src: string;
+  /** Alt text if available */
+  alt?: string;
+  /** Type/source of the image */
+  type: ImageAssetType;
+  /** Size specification (e.g., "180x180", "32x32") */
+  sizes?: string;
+  /** MIME type if specified */
+  mimeType?: string;
+}
+
 export interface ResourcesData {
   stylesheets?: Array<{ href: string; media?: string }>;
   scripts?: Array<{ src: string; async?: boolean; defer?: boolean; type?: string }>;
-  images?: Array<{ src: string; alt?: string }>;
+  /** All image assets found (may contain duplicates by URL) */
+  images?: ImageAsset[];
   links?: Array<{ href: string; rel?: string }>;
+  /** Theme color from <meta name="theme-color"> */
+  themeColor?: string;
 }
 
 export interface NetworkingData {

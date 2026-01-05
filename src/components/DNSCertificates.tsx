@@ -87,7 +87,11 @@ function DNSCertificatesDetail({ dns, certificateInfo }: DNSCertificatesDetailPr
 
           <List.Item.Detail.Metadata.Label
             title="MX Records"
-            text={dns?.mxRecords?.length ? `${dns.mxRecords.length} record(s)` : "None"}
+            text={
+              dns?.mxRecords?.length
+                ? `${dns.mxRecords.length} ${dns.mxRecords.length === 1 ? "record" : "records"}`
+                : "None"
+            }
           />
 
           <List.Item.Detail.Metadata.Label
@@ -97,7 +101,11 @@ function DNSCertificatesDetail({ dns, certificateInfo }: DNSCertificatesDetailPr
 
           <List.Item.Detail.Metadata.Label
             title="TXT Records"
-            text={dns?.txtRecords?.length ? `${dns.txtRecords.length} record(s)` : "None"}
+            text={
+              dns?.txtRecords?.length
+                ? `${dns.txtRecords.length} ${dns.txtRecords.length === 1 ? "record" : "records"}`
+                : "None"
+            }
           />
 
           <List.Item.Detail.Metadata.Separator />

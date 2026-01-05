@@ -24,10 +24,23 @@ export interface StreamedHeadResult {
  * Streams a response and extracts only the <head> content to minimize memory usage.
  * Stops reading once </head> is found or MAX_HEAD_BYTES is reached.
  */
-export async function fetchHeadOnly(url: string, timeout: number = TIMEOUTS.HTML_FETCH): Promise<StreamedHeadResult> {
+export async function fetchHeadOnly(
+  url: string,
+  timeout: number = TIMEOUTS.HTML_FETCH,
+  externalSignal?: AbortSignal,
+): Promise<StreamedHeadResult> {
   log.log("fetchHeadOnly:start", { url, timeout });
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  // Link external signal to our controller
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      log.log("fetchHeadOnly:external-signal-already-aborted", { url });
+      throw new Error("Fetch aborted");
+    }
+    externalSignal.addEventListener("abort", () => controller.abort(), { once: true });
+  }
 
   const startTime = performance.now();
 
@@ -35,6 +48,12 @@ export async function fetchHeadOnly(url: string, timeout: number = TIMEOUTS.HTML
     const response = await fetch(url, {
       signal: controller.signal,
       redirect: "follow",
+      headers: {
+        // Disable compression to avoid V8 RegExpCompiler crashes in Raycast's
+        // memory-constrained worker. The decompression code path in Node.js
+        // can trigger V8 memory allocation failures on certain sites.
+        "Accept-Encoding": "identity",
+      },
     });
 
     const endTime = performance.now();
@@ -46,57 +65,43 @@ export async function fetchHeadOnly(url: string, timeout: number = TIMEOUTS.HTML
       headers[key] = value;
     });
 
-    // Stream the response body
-    const reader = response.body?.getReader();
-    if (!reader) {
-      log.error("fetchHeadOnly:no-reader", { url });
-      throw new Error("Response body is not readable");
-    }
+    // Use response.text() instead of streaming to avoid V8 RegExp memory issues
+    // that can occur with certain sites during stream reading
+    log.log("fetchHeadOnly:fetching-text", { url });
+    const fullText = await response.text();
+    log.log("fetchHeadOnly:text-received", { url, length: fullText.length });
 
-    const decoder = new TextDecoder();
-    let accumulated = "";
-    let bytesRead = 0;
+    let accumulated = fullText;
     let truncated = false;
 
-    log.log("fetchHeadOnly:streaming", { url });
-    while (bytesRead < LIMITS.MAX_HEAD_BYTES) {
-      const { done, value } = await reader.read();
+    // Extract just the head section
+    let headEndIndex = accumulated.indexOf("</head>");
+    if (headEndIndex === -1) headEndIndex = accumulated.indexOf("</HEAD>");
+    if (headEndIndex === -1) headEndIndex = accumulated.indexOf("</Head>");
 
-      if (done) break;
+    if (headEndIndex !== -1) {
+      log.log("fetchHeadOnly:found-head-end", { headEndIndex });
+      accumulated = accumulated.slice(0, headEndIndex + 7); // Include </head>
+      truncated = true;
+    } else {
+      // Check for <body> as a fallback
+      let bodyStartIndex = accumulated.indexOf("<body");
+      if (bodyStartIndex === -1) bodyStartIndex = accumulated.indexOf("<BODY");
+      if (bodyStartIndex === -1) bodyStartIndex = accumulated.indexOf("<Body");
 
-      bytesRead += value.length;
-      accumulated += decoder.decode(value, { stream: true });
-
-      // Check if we have the complete <head> section
-      const headEndIndex = accumulated.toLowerCase().indexOf("</head>");
-      if (headEndIndex !== -1) {
-        // Found </head>, extract just what we need and stop
-        log.log("fetchHeadOnly:found-head-end", { bytesRead, headEndIndex });
-        accumulated = accumulated.slice(0, headEndIndex + 7); // Include </head>
-        truncated = true;
-        break;
-      }
-
-      // Also check for <body> as a fallback (some pages might not close head properly)
-      const bodyStartIndex = accumulated.toLowerCase().indexOf("<body");
       if (bodyStartIndex !== -1) {
-        log.log("fetchHeadOnly:found-body-start", { bytesRead, bodyStartIndex });
+        log.log("fetchHeadOnly:found-body-start", { bodyStartIndex });
         accumulated = accumulated.slice(0, bodyStartIndex);
         truncated = true;
-        break;
+      } else if (accumulated.length > LIMITS.MAX_HEAD_BYTES) {
+        // Truncate if too large
+        log.log("fetchHeadOnly:truncating", { originalLength: accumulated.length, maxBytes: LIMITS.MAX_HEAD_BYTES });
+        accumulated = accumulated.slice(0, LIMITS.MAX_HEAD_BYTES);
+        truncated = true;
       }
     }
 
-    // Cancel the reader to stop downloading
-    await reader.cancel();
-
-    // If we hit the byte limit without finding </head>, mark as truncated
-    if (bytesRead >= LIMITS.MAX_HEAD_BYTES) {
-      log.log("fetchHeadOnly:max-bytes-reached", { bytesRead, maxBytes: LIMITS.MAX_HEAD_BYTES });
-      truncated = true;
-    }
-
-    log.log("fetchHeadOnly:complete", { url, bytesRead, truncated, htmlLength: accumulated.length });
+    log.log("fetchHeadOnly:complete", { url, truncated, htmlLength: accumulated.length });
     return {
       headHtml: accumulated,
       status: response.status,
@@ -107,6 +112,11 @@ export async function fetchHeadOnly(url: string, timeout: number = TIMEOUTS.HTML
     };
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
+      // Check if this was an external abort or a timeout
+      if (externalSignal?.aborted) {
+        log.log("fetchHeadOnly:aborted", { url });
+        throw new Error("Fetch aborted");
+      }
       log.error("fetchHeadOnly:timeout", { url, timeout });
       throw new Error(`Request timeout after ${timeout}ms`);
     }
@@ -124,18 +134,19 @@ export async function fetchHeadOnly(url: string, timeout: number = TIMEOUTS.HTML
 export async function fetchHeadOnlyWithFallback(
   url: string,
   timeout: number = TIMEOUTS.HTML_FETCH,
+  signal?: AbortSignal,
 ): Promise<StreamedHeadResult> {
   const urlObj = new URL(url);
 
   // If explicitly using http://, don't try https first
   if (urlObj.protocol === "http:") {
     log.log("fetchHeadOnlyWithFallback:http-explicit", { url });
-    return fetchHeadOnly(url, timeout);
+    return fetchHeadOnly(url, timeout, signal);
   }
 
   // Try HTTPS first
   try {
-    return await fetchHeadOnly(url, timeout);
+    return await fetchHeadOnly(url, timeout, signal);
   } catch (httpsError) {
     // If HTTPS failed, try HTTP as fallback
     const httpUrl = url.replace(/^https:\/\//i, "http://");
@@ -146,7 +157,7 @@ export async function fetchHeadOnlyWithFallback(
     });
 
     try {
-      const result = await fetchHeadOnly(httpUrl, timeout);
+      const result = await fetchHeadOnly(httpUrl, timeout, signal);
       log.log("fetchHeadOnlyWithFallback:http-success", { httpUrl });
       return result;
     } catch (httpError) {
@@ -161,6 +172,116 @@ export async function fetchHeadOnlyWithFallback(
   }
 }
 
+export interface TextResourceResult {
+  exists: boolean;
+  content?: string;
+  contentType?: string;
+  status: number;
+  isSoft404: boolean;
+}
+
+/**
+ * Validates if a response is a genuine text resource (not a soft 404 HTML page).
+ * Checks Content-Type header and content for HTML markers.
+ */
+function isValidTextResource(contentType: string | undefined, content: string): boolean {
+  // Check Content-Type - should be text/plain for robots.txt, llms.txt, etc.
+  // Some servers may return application/octet-stream or no content-type
+  if (contentType) {
+    const lowerContentType = contentType.toLowerCase();
+    // If explicitly HTML, it's a soft 404
+    if (lowerContentType.includes("text/html") || lowerContentType.includes("application/xhtml")) {
+      return false;
+    }
+  }
+
+  // Check content for HTML markers (case-insensitive)
+  const trimmedContent = content.trim().toLowerCase();
+
+  // Common HTML document markers
+  if (
+    trimmedContent.startsWith("<!doctype") ||
+    trimmedContent.startsWith("<html") ||
+    trimmedContent.startsWith("<head") ||
+    trimmedContent.startsWith("<body") ||
+    trimmedContent.startsWith("<?xml") // XHTML
+  ) {
+    return false;
+  }
+
+  // Check for HTML tags anywhere in the first 500 chars (some soft 404s may have whitespace first)
+  const firstChunk = trimmedContent.slice(0, 500);
+  if (/<html[\s>]/i.test(firstChunk) || /<head[\s>]/i.test(firstChunk) || /<body[\s>]/i.test(firstChunk)) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Fetches a text resource (like robots.txt or llms.txt) and validates it's not a soft 404.
+ * Returns the content if valid, or marks it as a soft 404 if HTML is returned.
+ */
+export async function fetchTextResource(
+  url: string,
+  timeout: number = TIMEOUTS.RESOURCE_FETCH,
+): Promise<TextResourceResult> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      redirect: "follow",
+      headers: {
+        // Disable compression to avoid V8 RegExpCompiler crashes
+        "Accept-Encoding": "identity",
+      },
+    });
+
+    const contentType = response.headers.get("content-type") || undefined;
+
+    // If not a 2xx status, resource doesn't exist
+    if (response.status < 200 || response.status >= 300) {
+      return {
+        exists: false,
+        status: response.status,
+        contentType,
+        isSoft404: false,
+      };
+    }
+
+    // Read the content to validate it
+    const content = await response.text();
+
+    // Validate it's actually a text resource, not an HTML soft 404
+    const isValid = isValidTextResource(contentType, content);
+
+    if (!isValid) {
+      log.log("fetchTextResource:soft404-detected", {
+        url,
+        contentType,
+        contentPreview: content.slice(0, 100),
+      });
+    }
+
+    return {
+      exists: isValid,
+      content: isValid ? content : undefined,
+      contentType,
+      status: response.status,
+      isSoft404: !isValid,
+    };
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`Request timeout after ${timeout}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export async function fetchWithTimeout(url: string, timeout: number = TIMEOUTS.RESOURCE_FETCH): Promise<FetchResult> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -171,6 +292,10 @@ export async function fetchWithTimeout(url: string, timeout: number = TIMEOUTS.R
     const response = await fetch(url, {
       signal: controller.signal,
       redirect: "follow",
+      headers: {
+        // Disable compression to avoid V8 RegExpCompiler crashes
+        "Accept-Encoding": "identity",
+      },
     });
 
     const endTime = performance.now();

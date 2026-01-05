@@ -1,5 +1,6 @@
 import { Action, Icon } from "@raycast/api";
 import { ResourceDetailView } from "../components/ResourceDetailView";
+import { SitemapDetailView } from "../components/SitemapDetailView";
 
 /**
  * Props for the ResourceViewAction component
@@ -81,7 +82,7 @@ export function DiscoverabilityActions({ sitemapUrl, robotsUrl, llmsTxtUrl }: Di
   return (
     <>
       {sitemapUrl && (
-        <ResourceViewAction title="View Sitemap" url={sitemapUrl} resourceName="sitemap.xml" icon={Icon.Map} />
+        <Action.Push title="View Sitemap" icon={Icon.Map} target={<SitemapDetailView url={sitemapUrl} />} />
       )}
       {robotsUrl && (
         <ResourceViewAction title="View Robots.txt" url={robotsUrl} resourceName="robots.txt" icon={Icon.Document} />

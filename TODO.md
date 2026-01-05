@@ -286,6 +286,62 @@ src/
 
 ---
 
+## Phase 8: Enhanced Resources & Images
+
+### 8.1 View All Resources Action ✅
+
+- [x] Create `src/components/ResourcesListView.tsx` - List view with dropdown filter
+- [x] Add "View All Stylesheets/Scripts/Feeds" action when >5 resources detected
+- [x] Dropdown to filter by: Stylesheets, Scripts, Feeds
+- [x] Section headers for each resource type
+- [x] Filename displayed on the left
+- [x] Open URL action on each row to view linked asset in browser
+
+### 8.2 Comprehensive Image Detection ✅
+
+Expand image sources to include:
+
+**HTML Link/Meta Tags:**
+
+- [x] `<link rel="icon">`, `<link rel="shortcut icon">`, `<link rel="icon" sizes="...">`
+- [x] `<link rel="apple-touch-icon">`, `<link rel="apple-touch-icon-precomposed">`
+- [x] `<link rel="mask-icon">` (Safari pinned tabs)
+- [x] `<meta name="msapplication-TileImage">`
+- [x] `<meta property="og:image">`, `<meta property="og:image:url">`
+- [x] `<meta name="twitter:image">`, `<meta name="twitter:image:src">`, `<meta name="twitter:player:image">`
+
+**JSON-LD Structured Data:**
+
+- [x] `Organization.logo`, `Article.image`, `Product.image`, `Person.image`, `WebSite.image`
+
+**Manifest.json:**
+
+- [ ] Parse `/manifest.json` for icons array (future enhancement)
+
+**Convention-based URLs (probe):**
+
+- [ ] `/favicon.ico`, `/apple-touch-icon.png`, etc. (future enhancement - requires additional HTTP requests)
+
+### 8.3 Images Grid View ✅
+
+- [x] Create `src/components/ImagesGridView.tsx` using Raycast Grid component
+- [x] "View All Images" action when >0 images detected
+- [x] Display image thumbnails with source type labels
+- [x] Deduplicate images by URL (show unique count, not total)
+
+### 8.4 Theme Color Support ✅
+
+- [x] Extract `<meta name="theme-color">`
+- [x] Display with color swatch in ResourcesAssets detail panel
+
+### 8.5 Type Updates ✅
+
+- [x] Add `ImageAsset` interface with `src`, `alt`, `type` (favicon, og, twitter, manifest, etc.), `sizes`
+- [x] Add `themeColor` to `ResourcesData`
+- [x] Update `ResourcesData.images` to use new `ImageAsset` type
+
+---
+
 ## Phase 7: Polish
 
 ### 7.1 Error Handling
@@ -327,6 +383,27 @@ src/
 | Performance & Signals | ⚡ | Timing, resource hints |
 | History & Evolution | 📜 | Wayback Machine data |
 | Data Feeds & API | 📡 | RSS, JSON-LD, API hints |
+
+---
+
+## Future Improvements
+
+### Full Page Parsing Option
+
+- [ ] Add preference "Analyze full page" (default: off) to parse entire HTML document instead of just `<head>`
+- [ ] Would enable extraction of `<img>` tags from `<body>`
+- [ ] Trade-off: More data vs. slower fetches and higher bandwidth usage and possible memory issues
+- [ ] JS-heavy sites (e.g., Amazon) would still be limited since they load content dynamically
+
+### Manifest.json Parsing
+
+- [ ] Fetch and parse `/manifest.json` for PWA icons array
+- [ ] Extract `icons`, `theme_color`, `background_color`, `name`, `short_name`
+
+### Convention-based URL Probing
+
+- [ ] Probe common favicon/icon URLs: `/favicon.ico`, `/apple-touch-icon.png`, etc.
+- [ ] Trade-off: Additional HTTP requests per site
 
 ---
 
