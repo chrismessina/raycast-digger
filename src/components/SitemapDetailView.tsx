@@ -1,7 +1,7 @@
 import { Detail, ActionPanel, Action, Icon, Keyboard } from "@raycast/api";
 import { useFetch } from "@raycast/utils";
 import * as cheerio from "cheerio";
-import { truncateText } from "../utils/formatters";
+import { truncateText, formatDate } from "../utils/formatters";
 
 const MAX_DISPLAY_ENTRIES = 100;
 
@@ -105,23 +105,6 @@ function formatSitemapMarkdown(sitemap: ParsedSitemap, url: string): string {
   }
 
   return markdown;
-}
-
-function formatDate(dateStr: string): string {
-  // Handle ISO date strings like "2026-01-04T12:00:00Z" or "2026-01-04"
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) {
-      return dateStr; // Return original if parsing fails
-    }
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
-    return dateStr;
-  }
 }
 
 export interface SitemapDetailViewProps {

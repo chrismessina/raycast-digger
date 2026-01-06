@@ -30,12 +30,15 @@ export function getStatusText(code: number): string {
   return statusTexts[code] || "Unknown";
 }
 
-export function formatDate(dateString: string): string {
+export function formatDate(dateString: string, monthFormat: "short" | "long" = "short"): string {
   try {
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      return dateString;
+    }
     return date.toLocaleDateString("en-US", {
       year: "numeric",
-      month: "long",
+      month: monthFormat,
       day: "numeric",
     });
   } catch {

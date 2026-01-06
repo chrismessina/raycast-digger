@@ -3,22 +3,6 @@ import { getLogger } from "./logger";
 const log = getLogger("botDetection");
 
 /**
- * Represents detected bot protection/WAF information
- */
-export interface BotProtectionInfo {
-  /** Whether bot protection was detected */
-  detected: boolean;
-  /** The type of protection detected (e.g., "cloudflare", "akamai", "aws-waf") */
-  provider?: string;
-  /** Human-readable name of the provider */
-  providerName?: string;
-  /** Whether the response appears to be a challenge page rather than real content */
-  isChallengePage: boolean;
-  /** Confidence level of the detection (0-1) */
-  confidence: number;
-}
-
-/**
  * Detection patterns for various bot protection services
  */
 interface DetectionPattern {
@@ -125,10 +109,18 @@ export interface DetectionInput {
   html?: string;
 }
 
+export interface DetectionResult {
+  detected: boolean;
+  provider?: string;
+  providerName?: string;
+  isChallengePage: boolean;
+  confidence: number;
+}
+
 /**
  * Detects bot protection/WAF based on response characteristics
  */
-export function detectBotProtection(input: DetectionInput): BotProtectionInfo {
+export function detectBotProtection(input: DetectionInput): DetectionResult {
   const { statusCode, headers, title, html } = input;
   const serverHeader = headers.server || headers.Server || "";
 
@@ -204,27 +196,6 @@ export function detectBotProtection(input: DetectionInput): BotProtectionInfo {
     isChallengePage: false,
     confidence: 0,
   };
-}
-
-/**
- * Checks if a title appears to be from a challenge/block page rather than real content
- */
-export function isChallengePageTitle(title: string | undefined): boolean {
-  if (!title) return false;
-
-  const trimmedTitle = title.trim();
-
-  for (const pattern of DETECTION_PATTERNS) {
-    if (pattern.challengeTitles) {
-      for (const regex of pattern.challengeTitles) {
-        if (regex.test(trimmedTitle)) {
-          return true;
-        }
-      }
-    }
-  }
-
-  return false;
 }
 
 /**

@@ -139,40 +139,22 @@ export function useFetchSite(url?: string) {
         updateProgress("dns", 0.3);
         updateProgress("history", 0.3);
 
-        // Wrap async operations to check abort signal
-        const dnsPromise = new Promise<Awaited<ReturnType<typeof performDNSLookup>> | undefined>((resolve) => {
-          if (abortController.signal.aborted) return resolve(undefined);
-          performDNSLookup(hostname)
-            .then(resolve)
-            .catch(() => resolve(undefined));
-          abortController.signal.addEventListener("abort", () => resolve(undefined));
-        });
+        // Helper to wrap async operations with abort signal support
+        function withAbort<T>(
+          promise: Promise<T>,
+          fallback: T,
+        ): Promise<T> {
+          if (abortController.signal.aborted) return Promise.resolve(fallback);
+          return new Promise((resolve) => {
+            promise.then(resolve).catch(() => resolve(fallback));
+            abortController.signal.addEventListener("abort", () => resolve(fallback), { once: true });
+          });
+        }
 
-        const certPromise = new Promise<CertificateInfo | null>((resolve) => {
-          if (abortController.signal.aborted) return resolve(null);
-          getTLSCertificateInfo(hostname)
-            .then(resolve)
-            .catch(() => resolve(null));
-          abortController.signal.addEventListener("abort", () => resolve(null));
-        });
-
-        const waybackPromise = new Promise<Awaited<ReturnType<typeof fetchWaybackMachineData>> | undefined>(
-          (resolve) => {
-            if (abortController.signal.aborted) return resolve(undefined);
-            fetchWaybackMachineData(normalizedUrl)
-              .then(resolve)
-              .catch(() => resolve(undefined));
-            abortController.signal.addEventListener("abort", () => resolve(undefined));
-          },
-        );
-
-        const hostMetaPromise = new Promise<Awaited<ReturnType<typeof fetchHostMetadata>> | undefined>((resolve) => {
-          if (abortController.signal.aborted) return resolve(undefined);
-          fetchHostMetadata(normalizedUrl)
-            .then(resolve)
-            .catch(() => resolve(undefined));
-          abortController.signal.addEventListener("abort", () => resolve(undefined));
-        });
+        const dnsPromise = withAbort(performDNSLookup(hostname), undefined);
+        const certPromise = withAbort(getTLSCertificateInfo(hostname), null);
+        const waybackPromise = withAbort(fetchWaybackMachineData(normalizedUrl), undefined);
+        const hostMetaPromise = withAbort(fetchHostMetadata(normalizedUrl), undefined);
 
         // Use streaming fetch for main HTML to avoid memory issues on large pages
         // Use getRootResourceUrl to ensure robots.txt, llms.txt and sitemap.xml are fetched from the domain root
@@ -600,27 +582,29 @@ export function useFetchSite(url?: string) {
           }
         });
 
+        // Build resources and dataFeeds objects once for reuse
+        const resources = {
+          stylesheets: stylesheets.length > 0 ? stylesheets : undefined,
+          scripts: scripts.length > 0 ? scripts : undefined,
+          images: images.length > 0 ? images : undefined,
+          links: links.length > 0 ? links : undefined,
+          themeColor,
+          fonts: deduplicatedFonts.length > 0 ? deduplicatedFonts : undefined,
+        };
+
+        const dataFeeds =
+          rssFeeds.length > 0 || atomFeeds.length > 0 || jsonFeeds.length > 0
+            ? {
+                rss: rssFeeds.length > 0 ? rssFeeds : undefined,
+                atom: atomFeeds.length > 0 ? atomFeeds : undefined,
+                json: jsonFeeds.length > 0 ? jsonFeeds : undefined,
+              }
+            : undefined;
+
         // Resources and data feeds parsing complete - update immediately
         updateProgress("resources", 1);
         updateProgress("dataFeeds", 1);
-        updateData({
-          resources: {
-            stylesheets: stylesheets.length > 0 ? stylesheets : undefined,
-            scripts: scripts.length > 0 ? scripts : undefined,
-            images: images.length > 0 ? images : undefined,
-            links: links.length > 0 ? links : undefined,
-            themeColor,
-            fonts: deduplicatedFonts.length > 0 ? deduplicatedFonts : undefined,
-          },
-          dataFeeds:
-            rssFeeds.length > 0 || atomFeeds.length > 0 || jsonFeeds.length > 0
-              ? {
-                  rss: rssFeeds.length > 0 ? rssFeeds : undefined,
-                  atom: atomFeeds.length > 0 ? atomFeeds : undefined,
-                  json: jsonFeeds.length > 0 ? jsonFeeds : undefined,
-                }
-              : undefined,
-        });
+        updateData({ resources, dataFeeds });
 
         log.log("fetch:awaiting-async-fetches", { hostname });
 
@@ -704,14 +688,7 @@ export function useFetchSite(url?: string) {
           metadata,
           discoverability,
           botProtection,
-          resources: {
-            stylesheets: stylesheets.length > 0 ? stylesheets : undefined,
-            scripts: scripts.length > 0 ? scripts : undefined,
-            images: images.length > 0 ? images : undefined,
-            links: links.length > 0 ? links : undefined,
-            themeColor,
-            fonts: deduplicatedFonts.length > 0 ? deduplicatedFonts : undefined,
-          },
+          resources,
           networking: {
             statusCode: status,
             headers,
@@ -724,14 +701,7 @@ export function useFetchSite(url?: string) {
             pageSize: streamedHtml.length,
           },
           history: finalHistoryData,
-          dataFeeds:
-            rssFeeds.length > 0 || atomFeeds.length > 0 || jsonFeeds.length > 0
-              ? {
-                  rss: rssFeeds.length > 0 ? rssFeeds : undefined,
-                  atom: atomFeeds.length > 0 ? atomFeeds : undefined,
-                  json: jsonFeeds.length > 0 ? jsonFeeds : undefined,
-                }
-              : undefined,
+          dataFeeds,
           hostMetadata,
           fetchedAt: Date.now(),
         };
