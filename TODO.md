@@ -462,8 +462,11 @@ Section: Fonts (3)
 
 ### Manifest.json Parsing
 
-- [ ] Fetch and parse `/manifest.json` for PWA icons array
-- [ ] Extract `icons`, `theme_color`, `background_color`, `name`, `short_name`
+- [x] Fetch and parse manifest.json (via `<link rel="manifest">`)
+- [x] Extract `icons` array as `manifest-icon` type
+- [x] Extract `screenshots` array as `manifest-screenshot` type (with `label` as alt text)
+- [x] Extract `shortcuts` icons as `manifest-shortcut` type
+- [ ] Extract `theme_color`, `background_color`, `name`, `short_name` for display in Overview
 
 ### Convention-based URL Probing
 

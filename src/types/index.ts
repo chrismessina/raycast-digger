@@ -67,7 +67,9 @@ export type ImageAssetType =
   | "twitter" // <meta name="twitter:image">
   | "msapplication" // <meta name="msapplication-TileImage">
   | "json-ld" // From JSON-LD structured data
-  | "manifest"; // From manifest.json icons
+  | "manifest-icon" // From manifest.json icons array
+  | "manifest-screenshot" // From manifest.json screenshots array
+  | "manifest-shortcut"; // From manifest.json shortcut icons
 
 /** Font provider type indicating the source of the font */
 export type FontProvider =

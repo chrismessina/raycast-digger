@@ -23,8 +23,12 @@ function getTypeLabel(type: ImageAssetType): string {
       return "MS Tile";
     case "json-ld":
       return "JSON-LD";
-    case "manifest":
-      return "Manifest";
+    case "manifest-icon":
+      return "Manifest Icon";
+    case "manifest-screenshot":
+      return "Screenshot";
+    case "manifest-shortcut":
+      return "Shortcut Icon";
     default:
       return type;
   }
@@ -44,8 +48,12 @@ function getTypeIcon(type: ImageAssetType): { source: Icon; tintColor: Color } {
       return { source: Icon.Window, tintColor: Color.Purple };
     case "json-ld":
       return { source: Icon.Code, tintColor: Color.Green };
-    case "manifest":
+    case "manifest-icon":
       return { source: Icon.Document, tintColor: Color.Yellow };
+    case "manifest-screenshot":
+      return { source: Icon.Monitor, tintColor: Color.Magenta };
+    case "manifest-shortcut":
+      return { source: Icon.Link, tintColor: Color.Yellow };
     default:
       return { source: Icon.Image, tintColor: Color.SecondaryText };
   }

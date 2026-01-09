@@ -503,6 +503,69 @@ export function useFetchSite(url?: string) {
         // 7. Extract theme-color
         const themeColor = $('meta[name="theme-color"]').attr("content");
 
+        // 8. Fetch and parse manifest.json for PWA icons, screenshots, and shortcuts
+        const manifestHref = $('link[rel="manifest"]').attr("href");
+        if (manifestHref) {
+          const manifestUrl = resolveUrl(manifestHref);
+          try {
+            const manifestResult = await fetchTextResource(manifestUrl);
+            if (manifestResult.exists && manifestResult.content) {
+              const manifest = JSON.parse(manifestResult.content);
+              log.log("parse:manifest", { url: manifestUrl, hasIcons: !!manifest.icons, hasScreenshots: !!manifest.screenshots, hasShortcuts: !!manifest.shortcuts });
+
+              // Extract icons from manifest
+              if (Array.isArray(manifest.icons)) {
+                for (const icon of manifest.icons) {
+                  if (icon.src) {
+                    images.push({
+                      src: resolveUrl(icon.src),
+                      type: "manifest-icon",
+                      sizes: icon.sizes,
+                      mimeType: icon.type,
+                    });
+                  }
+                }
+              }
+
+              // Extract screenshots from manifest
+              if (Array.isArray(manifest.screenshots)) {
+                for (const screenshot of manifest.screenshots) {
+                  if (screenshot.src) {
+                    images.push({
+                      src: resolveUrl(screenshot.src),
+                      type: "manifest-screenshot",
+                      sizes: screenshot.sizes,
+                      mimeType: screenshot.type,
+                      alt: screenshot.label,
+                    });
+                  }
+                }
+              }
+
+              // Extract shortcut icons from manifest
+              if (Array.isArray(manifest.shortcuts)) {
+                for (const shortcut of manifest.shortcuts) {
+                  if (Array.isArray(shortcut.icons)) {
+                    for (const icon of shortcut.icons) {
+                      if (icon.src) {
+                        images.push({
+                          src: resolveUrl(icon.src),
+                          type: "manifest-shortcut",
+                          sizes: icon.sizes,
+                          mimeType: icon.type,
+                          alt: shortcut.name,
+                        });
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            log.log("parse:manifest-error", { url: manifestUrl, error: e instanceof Error ? e.message : "unknown" });
+          }
+        }
+
         const links: Array<{ href: string; rel?: string }> = [];
         $('link[rel]:not([rel="stylesheet"]):not([rel="alternate"])')
           .slice(0, MAX_RESOURCES)
