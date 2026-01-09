@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import * as cheerio from "cheerio";
-import { showToast, Toast } from "@raycast/api";
+import { showFailureToast } from "@raycast/utils";
 import { fetchHeadOnlyWithFallback, fetchWithTimeout, fetchTextResource } from "../utils/fetcher";
 import { fetchWaybackMachineData } from "../utils/waybackUtils";
 import { fetchHostMetadata } from "../utils/hostMetaUtils";
@@ -13,6 +13,9 @@ import {
   BotProtectionData,
   ImageAsset,
   FontAsset,
+  FetchError,
+  FetchCategory,
+  ErrorType,
 } from "../types";
 import { detectBotProtection } from "../utils/botDetection";
 import { normalizeUrl, getRootResourceUrl } from "../utils/urlUtils";
@@ -21,6 +24,96 @@ import { parseFontsFromUrl, extractPreloadFont, deduplicateFonts } from "../util
 import { getLogger } from "../utils/logger";
 
 const log = getLogger("fetch");
+
+/** Classify an error for better user messaging */
+function classifyError(
+  error: unknown,
+  statusCode?: number,
+): { type: ErrorType; message: string; recoverable: boolean } {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const lowerMessage = errorMessage.toLowerCase();
+
+  // Network errors
+  if (
+    lowerMessage.includes("timeout") ||
+    lowerMessage.includes("timed out") ||
+    lowerMessage.includes("econnrefused") ||
+    lowerMessage.includes("enotfound") ||
+    lowerMessage.includes("network") ||
+    lowerMessage.includes("dns")
+  ) {
+    return {
+      type: "network",
+      message: "Unable to connect to the website. Check if the URL is correct and the site is online.",
+      recoverable: true,
+    };
+  }
+
+  // Bot protection / blocking
+  if (
+    lowerMessage.includes("blocked") ||
+    lowerMessage.includes("forbidden") ||
+    lowerMessage.includes("rate limit") ||
+    lowerMessage.includes("captcha") ||
+    lowerMessage.includes("challenge") ||
+    statusCode === 403 ||
+    statusCode === 429
+  ) {
+    return {
+      type: "blocked",
+      message: "Access was blocked. The site may have bot protection or rate limiting.",
+      recoverable: true,
+    };
+  }
+
+  // Not found
+  if (lowerMessage.includes("not found") || statusCode === 404) {
+    return {
+      type: "notFound",
+      message: "The page was not found. Check if the URL is correct.",
+      recoverable: false,
+    };
+  }
+
+  // Server errors
+  if (statusCode && statusCode >= 500) {
+    return {
+      type: "serverError",
+      message: "The server encountered an error. Try again later.",
+      recoverable: true,
+    };
+  }
+
+  // Invalid URL
+  if (lowerMessage.includes("invalid") || lowerMessage.includes("malformed")) {
+    return {
+      type: "invalid",
+      message: "The URL appears to be invalid. Please check the format.",
+      recoverable: false,
+    };
+  }
+
+  return {
+    type: "unknown",
+    message: errorMessage || "An unexpected error occurred.",
+    recoverable: true,
+  };
+}
+
+/** Get user-friendly description for a fetch category */
+function getCategoryDescription(category: FetchCategory): string {
+  const descriptions: Record<FetchCategory, string> = {
+    main: "Main page content",
+    dns: "DNS records",
+    certificate: "SSL certificate",
+    wayback: "Wayback Machine history",
+    hostMeta: "Host metadata",
+    robots: "robots.txt",
+    sitemap: "Sitemap",
+    llmsTxt: "llms.txt",
+  };
+  return descriptions[category];
+}
 
 export interface LoadingProgress {
   overview: number;
@@ -48,9 +141,25 @@ export function useFetchSite(url?: string) {
   const [data, setData] = useState<DiggerResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorType, setErrorType] = useState<ErrorType | null>(null);
+  const [fetchErrors, setFetchErrors] = useState<FetchError[]>([]);
   const [certificateInfo, setCertificateInfo] = useState<CertificateInfo | null>(null);
   const [progress, setProgress] = useState<LoadingProgress>(initialProgress);
   const { getFromCache, saveToCache } = useCache();
+
+  // Helper to add a partial fetch error
+  const addFetchError = (category: FetchCategory, error: unknown, recoverable = true) => {
+    const classified = classifyError(error);
+    const fetchError: FetchError = {
+      category,
+      message: error instanceof Error ? error.message : String(error),
+      description: getCategoryDescription(category),
+      recoverable: recoverable && classified.recoverable,
+      timestamp: Date.now(),
+    };
+    setFetchErrors((prev) => [...prev.filter((e) => e.category !== category), fetchError]);
+    log.log("fetch:partial-error", { category, message: fetchError.message });
+  };
 
   // Store abort controller in ref so we can cancel previous fetches
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -71,6 +180,8 @@ export function useFetchSite(url?: string) {
 
       setIsLoading(true);
       setError(null);
+      setErrorType(null);
+      setFetchErrors([]);
       setProgress(initialProgress);
 
       // Helper to update progress for a specific category
@@ -140,10 +251,7 @@ export function useFetchSite(url?: string) {
         updateProgress("history", 0.3);
 
         // Helper to wrap async operations with abort signal support
-        function withAbort<T>(
-          promise: Promise<T>,
-          fallback: T,
-        ): Promise<T> {
+        function withAbort<T>(promise: Promise<T>, fallback: T): Promise<T> {
           if (abortController.signal.aborted) return Promise.resolve(fallback);
           return new Promise((resolve) => {
             promise.then(resolve).catch(() => resolve(fallback));
@@ -511,7 +619,12 @@ export function useFetchSite(url?: string) {
             const manifestResult = await fetchTextResource(manifestUrl);
             if (manifestResult.exists && manifestResult.content) {
               const manifest = JSON.parse(manifestResult.content);
-              log.log("parse:manifest", { url: manifestUrl, hasIcons: !!manifest.icons, hasScreenshots: !!manifest.screenshots, hasShortcuts: !!manifest.shortcuts });
+              log.log("parse:manifest", {
+                url: manifestUrl,
+                hasIcons: !!manifest.icons,
+                hasScreenshots: !!manifest.screenshots,
+                hasShortcuts: !!manifest.shortcuts,
+              });
 
               // Extract icons from manifest
               if (Array.isArray(manifest.icons)) {
@@ -784,16 +897,14 @@ export function useFetchSite(url?: string) {
           return;
         }
 
-        const errorMessage = err instanceof Error ? err.message : "Failed to fetch site data";
-        log.error("fetch:error", { error: errorMessage });
+        const classified = classifyError(err);
+        log.error("fetch:error", { error: classified.message, type: classified.type });
         // Ensure async operations are cancelled on any error
         abortController.abort();
-        setError(errorMessage);
-        await showToast({
-          style: Toast.Style.Failure,
-          title: "Fetch Error",
-          message: errorMessage,
-        });
+        setError(classified.message);
+        setErrorType(classified.type);
+        addFetchError("main", err, classified.recoverable);
+        await showFailureToast(classified.message, { title: "Fetch Error" });
       } finally {
         // Only update loading state if this fetch wasn't aborted
         if (!abortController.signal.aborted) {
@@ -810,5 +921,5 @@ export function useFetchSite(url?: string) {
     }
   }, [url, fetchSite]);
 
-  return { data, isLoading, error, refetch, fetchSite, certificateInfo, progress };
+  return { data, isLoading, error, errorType, fetchErrors, refetch, fetchSite, certificateInfo, progress };
 }

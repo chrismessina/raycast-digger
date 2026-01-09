@@ -306,8 +306,6 @@ function ResourcesAssetsDetail({
           {!hasFonts && (
             <List.Item.Detail.Metadata.Label title="" text={isChallengePage ? deniedMessage : "No fonts found"} />
           )}
-
-
         </List.Item.Detail.Metadata>
       }
     />

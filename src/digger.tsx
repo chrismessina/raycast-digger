@@ -10,6 +10,7 @@ import { NetworkingSecurity } from "./components/NetworkingSecurity";
 import { DNSCertificates } from "./components/DNSCertificates";
 import { WaybackMachine } from "./components/WaybackMachine";
 import { DataFeedsAPI } from "./components/DataFeedsAPI";
+import { ErrorDisplay, PartialErrorBanner } from "./components/ErrorDisplay";
 
 export type { LoadingProgress };
 
@@ -26,7 +27,8 @@ const preferences = getPreferenceValues<{
 export default function Command(props: { arguments: Arguments }) {
   const { url: inputUrl } = props.arguments;
   const [url, setUrl] = useState<string | undefined>(inputUrl);
-  const { data, isLoading, error, fetchSite, refetch, certificateInfo, progress } = useFetchSite(url);
+  const { data, isLoading, error, errorType, fetchErrors, fetchSite, refetch, certificateInfo, progress } =
+    useFetchSite(url);
 
   useEffect(() => {
     (async () => {
@@ -75,10 +77,20 @@ export default function Command(props: { arguments: Arguments }) {
     }
   }, [url]);
 
-  if (error) {
+  // Check if we have partial data (some sections loaded successfully)
+  const hasPartialData = !!(data && (data.overview || data.metadata || data.networking));
+
+  // Show full error state only if we have no partial data
+  if (error && !hasPartialData) {
     return (
-      <List>
-        <List.Item title="Error" subtitle={error} icon="⚠️" />
+      <List isShowingDetail>
+        <ErrorDisplay
+          error={error}
+          errorType={errorType}
+          fetchErrors={fetchErrors}
+          onRetry={refetch}
+          hasPartialData={false}
+        />
       </List>
     );
   }
@@ -97,6 +109,7 @@ export default function Command(props: { arguments: Arguments }) {
 
   return (
     <List isLoading={isLoading} isShowingDetail>
+      {fetchErrors.length > 0 && <PartialErrorBanner fetchErrors={fetchErrors} onRetry={refetch} />}
       <Overview data={data} onRefresh={refetch} overallProgress={overallProgress} />
       <MetadataSemantics data={data} onRefresh={refetch} progress={progress.metadata} />
       <Discoverability data={data} onRefresh={refetch} progress={progress.discoverability} />

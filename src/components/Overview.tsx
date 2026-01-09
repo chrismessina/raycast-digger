@@ -100,12 +100,15 @@ function OverviewDetail({ data, statusText, contentType, contentLength, finalUrl
   const showDescription = cleanDescription && cleanDescription !== cleanTitle;
 
   // Find the best representative image (prioritize og:image, then twitter:image)
-  const representativeImage = resources?.images?.find((img) => img.type === "og")
-    ?? resources?.images?.find((img) => img.type === "twitter")
-    ?? resources?.images?.find((img) => img.type === "json-ld");
+  const representativeImage =
+    resources?.images?.find((img) => img.type === "og") ??
+    resources?.images?.find((img) => img.type === "twitter") ??
+    resources?.images?.find((img) => img.type === "json-ld");
 
   // Build markdown with image if available
-  const markdown = representativeImage ? `![${representativeImage.alt || "Preview"}](${representativeImage.src})` : undefined;
+  const markdown = representativeImage
+    ? `![${representativeImage.alt || "Preview"}](${representativeImage.src})`
+    : undefined;
 
   return (
     <List.Item.Detail

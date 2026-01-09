@@ -88,16 +88,18 @@ function MetadataSemanticsDetail({
   const isImageField = (key: string) => key.toLowerCase().includes("image");
 
   const renderMetadataItem = (key: string, value: string) => {
+    const displayTitle = key.replace(/^(og:|twitter:)/, "");
+    
     if (isImageField(key)) {
       const absoluteUrl = resolveUrl(value, url);
       return (
-        <List.Item.Detail.Metadata.Link key={key} title={key} target={absoluteUrl} text={truncateText(value, 60)} />
+        <List.Item.Detail.Metadata.Link key={key} title={displayTitle} target={absoluteUrl} text={truncateText(value, 60)} />
       );
     }
     return isUrl(value) ? (
-      <List.Item.Detail.Metadata.Link key={key} title={key} target={value} text={truncateText(value, 60)} />
+      <List.Item.Detail.Metadata.Link key={key} title={displayTitle} target={value} text={truncateText(value, 60)} />
     ) : (
-      <List.Item.Detail.Metadata.Label key={key} title={key} text={truncateText(value, 60)} />
+      <List.Item.Detail.Metadata.Label key={key} title={displayTitle} text={truncateText(value, 60)} />
     );
   };
 

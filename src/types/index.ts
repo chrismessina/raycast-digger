@@ -176,3 +176,27 @@ export interface HostMetadataData {
   }>;
   format?: "xrd" | "jrd";
 }
+
+/** Categories that can fail independently during fetch */
+export type FetchCategory = "main" | "dns" | "certificate" | "wayback" | "hostMeta" | "robots" | "sitemap" | "llmsTxt";
+
+/** Represents an error that occurred during fetching */
+export interface FetchError {
+  category: FetchCategory;
+  message: string;
+  /** User-friendly description of what failed */
+  description: string;
+  /** Whether this error is recoverable (can retry) */
+  recoverable: boolean;
+  /** Timestamp when the error occurred */
+  timestamp: number;
+}
+
+/** Error classification for better user messaging */
+export type ErrorType =
+  | "network" // Connection failed, timeout, DNS resolution
+  | "blocked" // Bot protection, firewall, rate limiting
+  | "notFound" // 404, domain doesn't exist
+  | "serverError" // 5xx errors
+  | "invalid" // Invalid URL, malformed response
+  | "unknown"; // Unclassified errors

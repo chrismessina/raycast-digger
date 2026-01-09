@@ -46,14 +46,6 @@
       ],
       "preferences": [
         {
-          "name": "downloadPath",
-          "title": "Download Path",
-          "description": "Path to save downloaded HTML files",
-          "type": "directory",
-          "default": "~/Downloads",
-          "required": true
-        },
-        {
           "name": "autoLoadUrlFromClipboard",
           "title": "Auto Load URL from Clipboard",
           "description": "Automatically load the URL from the clipboard when the command is executed",

@@ -36,10 +36,10 @@ export async function fetchWaybackMachineData(url: string): Promise<HistoryData 
       };
     };
 
-    log.log("wayback:availability-response", { 
-      url, 
+    log.log("wayback:availability-response", {
+      url,
       hasClosest: !!data.archived_snapshots?.closest,
-      closest: data.archived_snapshots?.closest 
+      closest: data.archived_snapshots?.closest,
     });
 
     // Note: The availability API can be unreliable (returns no closest even when snapshots exist)
@@ -76,7 +76,10 @@ export async function fetchWaybackMachineData(url: string): Promise<HistoryData 
         rateLimited = true;
       }
     } catch (cdxCountErr) {
-      log.warn("wayback:cdx-count-fetch-error", { url, error: cdxCountErr instanceof Error ? cdxCountErr.message : String(cdxCountErr) });
+      log.warn("wayback:cdx-count-fetch-error", {
+        url,
+        error: cdxCountErr instanceof Error ? cdxCountErr.message : String(cdxCountErr),
+      });
       rateLimited = true;
     }
 
@@ -107,7 +110,10 @@ export async function fetchWaybackMachineData(url: string): Promise<HistoryData 
             }
           }
         } catch (preciseErr) {
-          log.warn("wayback:precise-fetch-error", { url, error: preciseErr instanceof Error ? preciseErr.message : String(preciseErr) });
+          log.warn("wayback:precise-fetch-error", {
+            url,
+            error: preciseErr instanceof Error ? preciseErr.message : String(preciseErr),
+          });
           // Fall back to estimate
           snapshotCount = pageCount * 5;
           isEstimate = true;
@@ -135,7 +141,10 @@ export async function fetchWaybackMachineData(url: string): Promise<HistoryData 
               }
             }
           } catch (timestampErr) {
-            log.warn("wayback:cdx-first-error", { url, error: timestampErr instanceof Error ? timestampErr.message : String(timestampErr) });
+            log.warn("wayback:cdx-first-error", {
+              url,
+              error: timestampErr instanceof Error ? timestampErr.message : String(timestampErr),
+            });
           }
         } else {
           log.log("wayback:skip-timestamp-fetch", { url, pageCount, reason: "very large archive" });

@@ -65,7 +65,7 @@ function DNSCertificatesDetail({ dns, certificateInfo }: DNSCertificatesDetailPr
 
           <List.Item.Detail.Metadata.Label
             title="A Records (IPv4)"
-            text={dns?.aRecords?.length ? dns.aRecords.slice(0, 3).join(", ") : "None"}
+            text={dns?.aRecords?.length ? dns.aRecords.slice(0, 3).join(", ") : "No IPv4 addresses found"}
             icon={
               dns?.aRecords?.length
                 ? { source: Icon.Check, tintColor: Color.Green }
@@ -75,7 +75,7 @@ function DNSCertificatesDetail({ dns, certificateInfo }: DNSCertificatesDetailPr
 
           <List.Item.Detail.Metadata.Label
             title="AAAA Records (IPv6)"
-            text={dns?.aaaaRecords?.length ? dns.aaaaRecords.slice(0, 2).join(", ") : "None"}
+            text={dns?.aaaaRecords?.length ? dns.aaaaRecords.slice(0, 2).join(", ") : "No IPv6 addresses found"}
             icon={
               dns?.aaaaRecords?.length
                 ? { source: Icon.Check, tintColor: Color.Green }
@@ -83,20 +83,20 @@ function DNSCertificatesDetail({ dns, certificateInfo }: DNSCertificatesDetailPr
             }
           />
 
-          <List.Item.Detail.Metadata.Label title="CNAME" text={dns?.cnameRecord || "None"} />
+          <List.Item.Detail.Metadata.Label title="CNAME" text={dns?.cnameRecord || "No CNAME record"} />
 
           <List.Item.Detail.Metadata.Label
             title="MX Records"
             text={
               dns?.mxRecords?.length
                 ? `${dns.mxRecords.length} ${dns.mxRecords.length === 1 ? "record" : "records"}`
-                : "None"
+                : "No mail servers found"
             }
           />
 
           <List.Item.Detail.Metadata.Label
             title="NS Records"
-            text={dns?.nsRecords?.length ? dns.nsRecords.slice(0, 2).join(", ") : "None"}
+            text={dns?.nsRecords?.length ? dns.nsRecords.slice(0, 2).join(", ") : "No nameservers found"}
           />
 
           <List.Item.Detail.Metadata.Label
@@ -104,7 +104,7 @@ function DNSCertificatesDetail({ dns, certificateInfo }: DNSCertificatesDetailPr
             text={
               dns?.txtRecords?.length
                 ? `${dns.txtRecords.length} ${dns.txtRecords.length === 1 ? "record" : "records"}`
-                : "None"
+                : "No TXT records found"
             }
           />
 
