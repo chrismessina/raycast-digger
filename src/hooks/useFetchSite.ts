@@ -332,24 +332,28 @@ export function useFetchSite(url?: string) {
           llmsTxt: llmsTxtResult.status === "fulfilled" && !!llmsTxtResult.value && llmsTxtResult.value.exists === true,
         };
 
+        // Collect alternates, excluding feed types (those go to DataFeedsData)
+        const feedMimeTypes = [
+          "application/rss+xml",
+          "application/atom+xml",
+          "application/json",
+          "application/feed+json",
+        ];
         const alternates: Array<{ href: string; hreflang?: string; type?: string }> = [];
         $('link[rel="alternate"]').each((_, el) => {
           const href = $(el).attr("href");
-          if (href) {
+          const type = $(el).attr("type");
+          // Skip feed types - they're handled separately in DataFeedsData
+          if (href && !feedMimeTypes.includes(type || "")) {
             alternates.push({
               href,
               hreflang: $(el).attr("hreflang"),
-              type: $(el).attr("type"),
+              type,
             });
           }
         });
         if (alternates.length > 0) {
           discoverability.alternates = alternates;
-        }
-
-        const rssLink = $('link[rel="alternate"][type="application/rss+xml"]').attr("href");
-        if (rssLink) {
-          discoverability.rss = rssLink;
         }
 
         // Discoverability parsing complete - update immediately

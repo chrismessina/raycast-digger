@@ -5,7 +5,7 @@ import { BrowserActions } from "../actions/BrowserActions";
 import { CopyActions } from "../actions/CopyActions";
 import { CacheActions } from "../actions/CacheActions";
 import { WaybackMachineActions } from "../actions/WaybackMachineActions";
-import { formatDate } from "../utils/formatters";
+import { formatDate, formatCompactNumber } from "../utils/formatters";
 
 interface WaybackMachineProps {
   data: DiggerResult | null;
@@ -92,6 +92,18 @@ function WaybackMachineDetail({ history, hasSnapshots, isRateLimited, isStillLoa
     }
   };
 
+  // Format snapshot count with estimate indicator
+  const formatSnapshotCount = (): string => {
+    if (!history?.waybackMachineSnapshots) return "0";
+    const count = history.waybackMachineSnapshots;
+    if (history.isEstimate) {
+      // Show compact format with + suffix for estimates
+      return `${formatCompactNumber(count)}+`;
+    }
+    // Precise count - use regular formatting
+    return count.toLocaleString();
+  };
+
   return (
     <List.Item.Detail
       metadata={
@@ -102,7 +114,7 @@ function WaybackMachineDetail({ history, hasSnapshots, isRateLimited, isStillLoa
             <>
               <List.Item.Detail.Metadata.Label
                 title="Total Snapshots"
-                text={history!.waybackMachineSnapshots!.toLocaleString()}
+                text={formatSnapshotCount()}
                 icon={{ source: Icon.Check, tintColor: Color.Green }}
               />
               {history!.firstSeen && (
@@ -133,12 +145,12 @@ function WaybackMachineDetail({ history, hasSnapshots, isRateLimited, isStillLoa
             <>
               <List.Item.Detail.Metadata.Label
                 title="Status"
-                text="Rate limited"
+                text="Temporarily unavailable"
                 icon={{ source: Icon.ExclamationMark, tintColor: Color.Orange }}
               />
               <List.Item.Detail.Metadata.Label
                 title=""
-                text="The Wayback Machine is temporarily limiting requests. Try again later."
+                text="The Wayback Machine API is rate limiting requests. Please wait a few minutes and try again, or visit the archive directly."
               />
               {history?.archiveUrl && (
                 <List.Item.Detail.Metadata.Link

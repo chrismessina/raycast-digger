@@ -36,50 +36,116 @@ export async function fetchWaybackMachineData(url: string): Promise<HistoryData 
       };
     };
 
-    // If the availability API says no snapshots, trust it
-    if (!data.archived_snapshots?.closest) {
-      return undefined;
-    }
+    log.log("wayback:availability-response", { 
+      url, 
+      hasClosest: !!data.archived_snapshots?.closest,
+      closest: data.archived_snapshots?.closest 
+    });
 
-    // Get total snapshot count from CDX API (no limit to get all snapshots)
-    const cdxCountUrl = `${WAYBACK_BASE_URL}/cdx/search/cdx?url=${encodeURIComponent(url)}&output=json&fl=timestamp&collapse=timestamp:8`;
-    const cdxCountResponse = await fetch(cdxCountUrl);
+    // Note: The availability API can be unreliable (returns no closest even when snapshots exist)
+    // So we proceed to CDX API regardless - it's the source of truth
+
+    // Use showNumPages=true for fast count - returns just the page count without downloading all data
+    const cdxCountUrl = `${WAYBACK_BASE_URL}/cdx/search/cdx?url=${encodeURIComponent(url)}&showNumPages=true`;
+    log.log("wayback:cdx-count-start", { url, cdxCountUrl });
 
     let snapshotCount = 0;
+    let pageCount = 0;
     let firstTimestamp: string | undefined;
     let lastTimestamp: string | undefined;
     let rateLimited = false;
+    let isEstimate = false;
 
-    // Check for rate limiting on CDX API
-    if (cdxCountResponse.status === 429) {
-      log.warn("wayback:cdx-rate-limited", { url, status: cdxCountResponse.status });
-      rateLimited = true;
-    } else if (cdxCountResponse.ok) {
-      const cdxData = await cdxCountResponse.json();
-      if (Array.isArray(cdxData) && cdxData.length > 1) {
-        // First row is header, so subtract 1
-        snapshotCount = Math.max(0, cdxData.length - 1);
+    try {
+      const cdxCountResponse = await fetch(cdxCountUrl);
+      log.log("wayback:cdx-count-response", { url, status: cdxCountResponse.status });
 
-        if (snapshotCount > 0) {
-          // Get first snapshot (index 1, after header)
-          firstTimestamp = cdxData[1]?.[0];
-          // Get last snapshot (last item in array)
-          lastTimestamp = cdxData[cdxData.length - 1]?.[0];
+      // Check for rate limiting on CDX API
+      if (cdxCountResponse.status === 429) {
+        log.warn("wayback:cdx-rate-limited", { url, status: cdxCountResponse.status });
+        rateLimited = true;
+      } else if (cdxCountResponse.ok) {
+        const countText = await cdxCountResponse.text();
+        log.log("wayback:cdx-count-text", { url, countText: countText.substring(0, 100) });
+        pageCount = parseInt(countText.trim(), 10);
+        if (!isNaN(pageCount) && pageCount > 0) {
+          log.log("wayback:cdx-page-count", { url, pageCount });
         }
-      } else if (Array.isArray(cdxData) && cdxData.length <= 1) {
-        // CDX returned empty or header-only - likely rate limited
-        // The availability API confirmed snapshots exist, so this is suspicious
-        log.warn("wayback:cdx-empty-suspicious", { url, cdxLength: cdxData.length });
+      } else {
+        log.warn("wayback:cdx-count-error", { url, status: cdxCountResponse.status });
         rateLimited = true;
       }
-    } else {
-      // Non-OK response that's not 429 - treat as potential rate limiting
-      log.warn("wayback:cdx-error", { url, status: cdxCountResponse.status });
+    } catch (cdxCountErr) {
+      log.warn("wayback:cdx-count-fetch-error", { url, error: cdxCountErr instanceof Error ? cdxCountErr.message : String(cdxCountErr) });
       rateLimited = true;
+    }
+
+    // Threshold: 10 pages = ~50 snapshots
+    // Below this, fetch precise count with timestamps
+    // Above this, return estimate immediately (skip slow timestamp queries)
+    const PRECISE_THRESHOLD = 10;
+    const isSmallArchive = pageCount > 0 && pageCount <= PRECISE_THRESHOLD;
+
+    if (pageCount > 0 && !rateLimited) {
+      if (isSmallArchive) {
+        // Small archive: fetch all timestamps for precise count and dates
+        log.log("wayback:precise-fetch-start", { url, pageCount });
+        try {
+          const preciseUrl = `${WAYBACK_BASE_URL}/cdx/search/cdx?url=${encodeURIComponent(url)}&output=json&fl=timestamp&collapse=timestamp:8`;
+          const preciseResponse = await fetch(preciseUrl);
+          if (preciseResponse.ok) {
+            const preciseData = await preciseResponse.json();
+            if (Array.isArray(preciseData) && preciseData.length > 1) {
+              // First row is header, so subtract 1
+              snapshotCount = Math.max(0, preciseData.length - 1);
+              if (snapshotCount > 0) {
+                firstTimestamp = preciseData[1]?.[0];
+                lastTimestamp = preciseData[preciseData.length - 1]?.[0];
+              }
+              isEstimate = false;
+              log.log("wayback:precise-fetch-success", { url, snapshotCount, firstTimestamp, lastTimestamp });
+            }
+          }
+        } catch (preciseErr) {
+          log.warn("wayback:precise-fetch-error", { url, error: preciseErr instanceof Error ? preciseErr.message : String(preciseErr) });
+          // Fall back to estimate
+          snapshotCount = pageCount * 5;
+          isEstimate = true;
+        }
+      } else {
+        // Large archive: return estimate immediately, skip slow timestamp queries
+        // CDX API pages contain ~5000 results each by default
+        snapshotCount = pageCount * 5000;
+        isEstimate = true;
+        log.log("wayback:large-archive-estimate", { url, pageCount, estimatedSnapshots: snapshotCount });
+
+        // For very large archives (1000+ pages = 5M+ snapshots), skip timestamp fetch entirely
+        // It's too slow and the user just wants to know there's a lot of history
+        if (pageCount < 1000) {
+          // Medium archive: fetch first timestamp only (skip slow reverse-sort for last)
+          try {
+            const firstUrl = `${WAYBACK_BASE_URL}/cdx/search/cdx?url=${encodeURIComponent(url)}&output=json&fl=timestamp&limit=1`;
+            log.log("wayback:cdx-first-start", { url });
+            const firstResponse = await fetch(firstUrl);
+            if (firstResponse.ok) {
+              const firstData = await firstResponse.json();
+              if (Array.isArray(firstData) && firstData.length > 1) {
+                firstTimestamp = firstData[1]?.[0];
+                log.log("wayback:cdx-first-success", { url, firstTimestamp });
+              }
+            }
+          } catch (timestampErr) {
+            log.warn("wayback:cdx-first-error", { url, error: timestampErr instanceof Error ? timestampErr.message : String(timestampErr) });
+          }
+        } else {
+          log.log("wayback:skip-timestamp-fetch", { url, pageCount, reason: "very large archive" });
+        }
+      }
     }
 
     const result: HistoryData = {
       waybackMachineSnapshots: snapshotCount,
+      isEstimate,
       firstSeen: firstTimestamp ? formatWaybackDate(firstTimestamp) : undefined,
       lastSeen: lastTimestamp ? formatWaybackDate(lastTimestamp) : undefined,
       archiveUrl: `${WAYBACK_BASE_URL}/web/*/${url}`,
@@ -88,6 +154,7 @@ export async function fetchWaybackMachineData(url: string): Promise<HistoryData 
     log.log("wayback:success", {
       url,
       snapshotCount,
+      isEstimate,
       firstSeen: result.firstSeen,
       lastSeen: result.lastSeen,
       rateLimited,

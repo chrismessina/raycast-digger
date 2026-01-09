@@ -76,24 +76,54 @@ export async function fetchHeadOnly(
 
     const timing = performance.now() - startTime;
     const headers = extractHeaders(response);
-    const fullText = await response.text();
+
+    // Stream-read only up to MAX_HEAD_BYTES to avoid memory issues with large pages
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error("Response body is not readable");
+    }
+
+    const decoder = new TextDecoder("utf-8", { fatal: false });
+    const chunks: string[] = [];
+    let totalBytes = 0;
+    let streamTruncated = false;
+
+    try {
+      while (totalBytes < LIMITS.MAX_HEAD_BYTES) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        chunks.push(chunk);
+        totalBytes += value.byteLength;
+      }
+
+      if (totalBytes >= LIMITS.MAX_HEAD_BYTES) {
+        streamTruncated = true;
+      }
+    } finally {
+      // Always cancel the reader to stop downloading
+      reader.cancel().catch(() => {});
+    }
+
+    const partialText = chunks.join("");
 
     // Find where head ends (case-insensitive)
-    let headHtml = fullText;
-    let truncated = false;
+    let headHtml = partialText;
+    let truncated = streamTruncated;
 
-    const headEndMatch = fullText.match(/<\/head>/i);
+    const headEndMatch = partialText.match(/<\/head>/i);
     if (headEndMatch && headEndMatch.index !== undefined) {
-      headHtml = fullText.slice(0, headEndMatch.index + 7);
+      headHtml = partialText.slice(0, headEndMatch.index + 7);
       truncated = true;
     } else {
       // Fallback: look for <body> start
-      const bodyStartMatch = fullText.match(/<body[\s>]/i);
+      const bodyStartMatch = partialText.match(/<body[\s>]/i);
       if (bodyStartMatch && bodyStartMatch.index !== undefined) {
-        headHtml = fullText.slice(0, bodyStartMatch.index);
+        headHtml = partialText.slice(0, bodyStartMatch.index);
         truncated = true;
-      } else if (fullText.length > LIMITS.MAX_HEAD_BYTES) {
-        headHtml = fullText.slice(0, LIMITS.MAX_HEAD_BYTES);
+      } else if (partialText.length > LIMITS.MAX_HEAD_BYTES) {
+        headHtml = partialText.slice(0, LIMITS.MAX_HEAD_BYTES);
         truncated = true;
       }
     }

@@ -50,3 +50,20 @@ export function truncateText(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
   return text.substring(0, maxLength) + "...";
 }
+
+/**
+ * Format large numbers compactly (1K, 5.7M, etc.)
+ */
+export function formatCompactNumber(num: number): string {
+  if (num >= 1_000_000) {
+    const millions = num / 1_000_000;
+    // Show one decimal if < 10M, otherwise round
+    return millions < 10 ? `${millions.toFixed(1)}M` : `${Math.round(millions)}M`;
+  }
+  if (num >= 1_000) {
+    const thousands = num / 1_000;
+    // Show one decimal if < 10K, otherwise round
+    return thousands < 10 ? `${thousands.toFixed(1)}K` : `${Math.round(thousands)}K`;
+  }
+  return num.toLocaleString();
+}

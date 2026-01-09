@@ -35,7 +35,7 @@ The crash was not about the regex in our code - it was about V8's internal regex
 ### Evidence
 
 | Test | Result |
-|------|--------|
+| ---- | ------ |
 | Standalone Node.js v25 fetching dribbble.com | Success |
 | Raycast extension fetching dribbble.com | Crash |
 | Compressed response size (dribbble.com) | ~59KB |
@@ -69,12 +69,13 @@ const response = await fetch(url, {
 ### Tradeoffs
 
 | Aspect | Before (with compression) | After (no compression) |
-|--------|--------------------------|------------------------|
+| ------ | -------------------------- | ------------------------ |
 | Network transfer | ~59KB | ~382KB |
 | Memory stability | Crashes on some sites | Stable |
 | Decompression overhead | Yes | None |
 
 The increased bandwidth is acceptable because:
+
 - Digger primarily extracts `<head>` content (typically <50KB)
 - Modern networks easily handle the difference
 - Stability is more important than bandwidth optimization for a local tool
@@ -99,9 +100,57 @@ These approaches were tried before finding the solution:
 
 See `v8-regexp-crash-investigation.md` for detailed documentation of the investigation process.
 
+## Additional Fix: Streaming with Size Limit (January 8, 2026)
+
+Disabling compression alone was insufficient for very large pages. Sites like `cnn.com` (1.97MB uncompressed) caused the same memory exhaustion via a different path—`response.text()` still loaded the entire response into memory before truncation.
+
+### Problem
+
+```text
+Error: Worker terminated due to reaching memory limit: JS heap out of memory
+```
+
+The log showed:
+
+```text
+[fetcher] fetchHeadOnly:complete { url: 'https://cnn.com', truncated: true, htmlLength: 1978407 }
+```
+
+Despite `truncated: true`, the full 1.97MB was already in memory.
+
+### Streaming Solution
+
+Replaced `response.text()` with streaming that stops after `MAX_HEAD_BYTES` (512KB):
+
+```typescript
+const reader = response.body?.getReader();
+const chunks: string[] = [];
+let totalBytes = 0;
+
+while (totalBytes < LIMITS.MAX_HEAD_BYTES) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  chunks.push(decoder.decode(value, { stream: true }));
+  totalBytes += value.byteLength;
+}
+
+reader.cancel(); // Stop downloading
+```
+
+### Two-Layer Defense
+
+| Layer | Fix | Protects Against |
+| ----- | --- | ------------------ |
+| 1. Disable compression | `Accept-Encoding: identity` | V8 decompression memory spikes |
+| 2. Stream with limit | Read max 512KB, cancel stream | Large uncompressed responses |
+
+Both layers are necessary to stay within Raycast's worker memory constraints.
+
 ## Verification
 
 After applying the fix:
+
 - `dribbble.com` loads successfully
 - `granola.ai` loads successfully
-- No regression on previously working sites (cnn.com, etc.)
+- `cnn.com` loads successfully (previously crashed with 1.97MB response)
+- No regression on other sites

@@ -148,7 +148,7 @@ function ResourcesAssetsDetail({
                   color={resources!.themeColor! as Color.ColorLike}
                 />
               </List.Item.Detail.Metadata.TagList>
-              <List.Item.Detail.Metadata.Separator />ver
+              <List.Item.Detail.Metadata.Separator />
             </>
           )}
           <List.Item.Detail.Metadata.Label

@@ -172,7 +172,7 @@ function DiscoverabilityDetail({
           )}
           <List.Item.Detail.Metadata.Separator />
           <List.Item.Detail.Metadata.Label
-            title="Alternate Links"
+            title="Language Alternates"
             icon={
               hasAlternates
                 ? { source: Icon.Check, tintColor: Color.Green }
@@ -185,7 +185,7 @@ function DiscoverabilityDetail({
               .map((alt, index) => (
                 <List.Item.Detail.Metadata.Link
                   key={index}
-                  title={alt.hreflang || alt.type || "Alternate"}
+                  title={alt.hreflang || "Alternate"}
                   target={alt.href}
                   text={truncateText(alt.href, 50)}
                 />
@@ -193,7 +193,7 @@ function DiscoverabilityDetail({
           {hasAlternates && discoverability!.alternates!.length > 5 && (
             <List.Item.Detail.Metadata.Label title="" text={`...and ${discoverability!.alternates!.length - 5} more`} />
           )}
-          {!hasAlternates && <List.Item.Detail.Metadata.Label title="" text="No alternate links found" />}
+          {!hasAlternates && <List.Item.Detail.Metadata.Label title="" text="No language alternates found" />}
         </List.Item.Detail.Metadata>
       }
     />

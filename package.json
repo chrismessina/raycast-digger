@@ -3,7 +3,7 @@
   "name": "digger",
   "title": "Digger",
   "description": "Like dig but for the web. Comprehensive website intelligence and metadata extraction.",
-  "icon": "extension-icon.png",
+  "icon": "digger.png",
   "author": "chrismessina",
   "platforms": [
     "macOS",
@@ -84,7 +84,7 @@
     }
   ],
   "dependencies": {
-    "@chrismessina/raycast-logger": "^1.0.0",
+    "@chrismessina/raycast-logger": "^1.2.1",
     "@raycast/api": "^1.104.1",
     "@raycast/utils": "^2.2.2",
     "cheerio": "^1.1.2",

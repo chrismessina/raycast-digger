@@ -52,11 +52,10 @@ export interface DiscoverabilityData {
   robots?: string;
   robotsTxt?: boolean;
   canonical?: string;
+  /** Language/region alternate links (hreflang). Feed alternates are in DataFeedsData. */
   alternates?: Array<{ href: string; hreflang?: string; type?: string }>;
   sitemap?: string;
   llmsTxt?: boolean;
-  rss?: string;
-  atom?: string;
 }
 
 /** Image asset type indicating the source of the image */
@@ -148,6 +147,8 @@ export interface PerformanceData {
 
 export interface HistoryData {
   waybackMachineSnapshots?: number;
+  /** Whether the snapshot count is an estimate (true) or precise (false) */
+  isEstimate?: boolean;
   firstSeen?: string;
   lastSeen?: string;
   archiveUrl?: string;
