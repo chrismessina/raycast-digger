@@ -6,7 +6,7 @@ import { Overview } from "./components/Overview";
 import { MetadataSemantics } from "./components/MetadataSemantics";
 import { Discoverability } from "./components/Discoverability";
 import { ResourcesAssets } from "./components/ResourcesAssets";
-import { NetworkingSecurity } from "./components/NetworkingSecurity";
+import { HTTPHeaders } from "./components/HTTPHeaders";
 import { DNSCertificates } from "./components/DNSCertificates";
 import { WaybackMachine } from "./components/WaybackMachine";
 import { DataFeedsAPI } from "./components/DataFeedsAPI";
@@ -114,10 +114,10 @@ export default function Command(props: { arguments: Arguments }) {
       <MetadataSemantics data={data} onRefresh={refetch} progress={progress.metadata} />
       <Discoverability data={data} onRefresh={refetch} progress={progress.discoverability} />
       <ResourcesAssets data={data} onRefresh={refetch} progress={progress.resources} />
-      <NetworkingSecurity data={data} onRefresh={refetch} progress={progress.networking} />
+      <HTTPHeaders data={data} onRefresh={refetch} progress={progress.networking} />
       <DNSCertificates data={data} onRefresh={refetch} certificateInfo={certificateInfo} progress={progress.dns} />
-      <WaybackMachine data={data} onRefresh={refetch} progress={progress.history} />
       <DataFeedsAPI data={data} onRefresh={refetch} progress={progress.dataFeeds} />
+      <WaybackMachine data={data} onRefresh={refetch} progress={progress.history} />
     </List>
   );
 }

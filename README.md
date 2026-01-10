@@ -52,12 +52,12 @@ Digger surfaces contextual information about any website without needing to open
 - Font detection (Google Fonts, Adobe Fonts, Bunny Fonts, Font Awesome, custom)
 - Theme color
 
-### Networking & Security
+### HTTP Headers
 
-- HTTP status code and headers
-- Server identification
-- Final URL after redirects
 - View all response headers
+- Security headers audit (CSP, HSTS, X-Frame-Options, etc.)
+- Server identification
+- HTTP status code
 
 ### DNS & Certificates
 

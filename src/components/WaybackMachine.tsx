@@ -150,7 +150,7 @@ function WaybackMachineDetail({ history, hasSnapshots, isRateLimited, isStillLoa
               />
               <List.Item.Detail.Metadata.Label
                 title=""
-                text="The Wayback Machine API is rate limiting requests. Please wait a few minutes and try again, or visit the archive directly."
+                text="The Wayback Machine API is rate limiting requests. Try again later."
               />
               {history?.archiveUrl && (
                 <List.Item.Detail.Metadata.Link

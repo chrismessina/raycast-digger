@@ -89,11 +89,16 @@ function MetadataSemanticsDetail({
 
   const renderMetadataItem = (key: string, value: string) => {
     const displayTitle = key.replace(/^(og:|twitter:)/, "");
-    
+
     if (isImageField(key)) {
       const absoluteUrl = resolveUrl(value, url);
       return (
-        <List.Item.Detail.Metadata.Link key={key} title={displayTitle} target={absoluteUrl} text={truncateText(value, 60)} />
+        <List.Item.Detail.Metadata.Link
+          key={key}
+          title={displayTitle}
+          target={absoluteUrl}
+          text={truncateText(value, 60)}
+        />
       );
     }
     return isUrl(value) ? (

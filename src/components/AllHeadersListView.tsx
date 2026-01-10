@@ -4,7 +4,7 @@ interface HeadersListViewProps {
   headers: Record<string, string>;
 }
 
-export function HeadersListView({ headers }: HeadersListViewProps) {
+export function AllHeadersListView({ headers }: HeadersListViewProps) {
   const headerEntries = Object.entries(headers).sort(([a], [b]) => a.localeCompare(b));
 
   return (
@@ -14,8 +14,8 @@ export function HeadersListView({ headers }: HeadersListViewProps) {
           <List.Item
             key={key}
             title={key}
-            subtitle={value}
             icon={Icon.Document}
+            accessories={[{ text: value }]}
             actions={
               <ActionPanel>
                 <Action.CopyToClipboard

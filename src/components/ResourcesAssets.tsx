@@ -7,6 +7,7 @@ import { truncateText } from "../utils/formatters";
 import { getDeniedAccessMessage } from "../utils/botDetection";
 import { ResourcesListView } from "./ResourcesListView";
 import { ImagesGridView, getUniqueImageCount } from "./ImagesGridView";
+import { resolveUrl } from "../utils/urlUtils";
 
 interface ResourcesAssetsProps {
   data: DiggerResult | null;
@@ -165,13 +166,14 @@ function ResourcesAssetsDetail({
             resources!.stylesheets!.slice(0, 5).map((sheet, index) => {
               const isDataUrl = sheet.href.startsWith("data:");
               const filename = isDataUrl ? "(inline)" : sheet.href.split("/").pop() || sheet.href;
+              const absoluteUrl = resolveUrl(sheet.href, data.url);
               return isDataUrl ? (
                 <List.Item.Detail.Metadata.Label key={index} title={sheet.media || "all"} text={filename} />
               ) : (
                 <List.Item.Detail.Metadata.Link
                   key={index}
                   title={sheet.media || "all"}
-                  target={sheet.href}
+                  target={absoluteUrl}
                   text={filename}
                 />
               );
@@ -205,11 +207,12 @@ function ResourcesAssetsDetail({
                     if (script.async) attrs.push("async");
                     if (script.defer) attrs.push("defer");
                     const filename = script.src.split("/").pop() || script.src;
+                    const absoluteUrl = resolveUrl(script.src, data.url);
                     return (
                       <List.Item.Detail.Metadata.Link
                         key={index}
                         title={attrs.length > 0 ? attrs.join(", ") : "sync"}
-                        target={script.src}
+                        target={absoluteUrl}
                         text={filename}
                       />
                     );
@@ -257,11 +260,12 @@ function ResourcesAssetsDetail({
                     // Extract filename and strip query string
                     const urlWithoutQuery = img.src.split("?")[0];
                     const filename = urlWithoutQuery.split("/").pop() || img.src;
+                    const absoluteUrl = resolveUrl(img.src, data.url);
                     return (
                       <List.Item.Detail.Metadata.Link
                         key={index}
                         title={img.type ? img.type : img.alt ? truncateText(img.alt, 20) : "No alt"}
-                        target={img.src}
+                        target={absoluteUrl}
                         text={filename}
                       />
                     );
@@ -291,11 +295,12 @@ function ResourcesAssetsDetail({
             resources!.fonts!.slice(0, 5).map((font: FontAsset, index: number) => {
               const providerName = FONT_PROVIDER_NAMES[font.provider];
               const variantsText = font.variants ? ` (${font.variants.join(", ")})` : "";
+              const absoluteUrl = resolveUrl(font.url, data.url);
               return (
                 <List.Item.Detail.Metadata.Link
                   key={index}
                   title={providerName}
-                  target={font.url}
+                  target={absoluteUrl}
                   text={`${font.family}${variantsText}`}
                 />
               );

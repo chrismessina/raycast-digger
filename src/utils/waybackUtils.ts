@@ -5,13 +5,33 @@ const log = getLogger("wayback");
 const ARCHIVE_BASE_URL = "https://archive.org";
 const WAYBACK_BASE_URL = "https://web.archive.org";
 
+// Timeout for Wayback Machine API requests (in milliseconds)
+const WAYBACK_TIMEOUT_MS = 10000;
+
+/**
+ * Fetch with timeout - aborts if request takes too long
+ */
+async function fetchWithTimeout(url: string, timeoutMs: number = WAYBACK_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
+  }
+}
+
 export async function fetchWaybackMachineData(url: string): Promise<HistoryData | undefined> {
   try {
     log.log("wayback:start", { url });
 
     // First check if any snapshots exist
     const apiUrl = `${ARCHIVE_BASE_URL}/wayback/available?url=${encodeURIComponent(url)}`;
-    const response = await fetch(apiUrl);
+    const response = await fetchWithTimeout(apiUrl);
 
     // Check for rate limiting (429) or server errors
     if (response.status === 429) {
@@ -57,7 +77,7 @@ export async function fetchWaybackMachineData(url: string): Promise<HistoryData 
     let isEstimate = false;
 
     try {
-      const cdxCountResponse = await fetch(cdxCountUrl);
+      const cdxCountResponse = await fetchWithTimeout(cdxCountUrl);
       log.log("wayback:cdx-count-response", { url, status: cdxCountResponse.status });
 
       // Check for rate limiting on CDX API
@@ -95,7 +115,7 @@ export async function fetchWaybackMachineData(url: string): Promise<HistoryData 
         log.log("wayback:precise-fetch-start", { url, pageCount });
         try {
           const preciseUrl = `${WAYBACK_BASE_URL}/cdx/search/cdx?url=${encodeURIComponent(url)}&output=json&fl=timestamp&collapse=timestamp:8`;
-          const preciseResponse = await fetch(preciseUrl);
+          const preciseResponse = await fetchWithTimeout(preciseUrl);
           if (preciseResponse.ok) {
             const preciseData = await preciseResponse.json();
             if (Array.isArray(preciseData) && preciseData.length > 1) {
@@ -110,12 +130,14 @@ export async function fetchWaybackMachineData(url: string): Promise<HistoryData 
             }
           }
         } catch (preciseErr) {
+          const isTimeout = preciseErr instanceof Error && preciseErr.name === "AbortError";
           log.warn("wayback:precise-fetch-error", {
             url,
             error: preciseErr instanceof Error ? preciseErr.message : String(preciseErr),
+            isTimeout,
           });
           // Fall back to estimate
-          snapshotCount = pageCount * 5;
+          snapshotCount = pageCount * 5000;
           isEstimate = true;
         }
       } else {
@@ -132,7 +154,7 @@ export async function fetchWaybackMachineData(url: string): Promise<HistoryData 
           try {
             const firstUrl = `${WAYBACK_BASE_URL}/cdx/search/cdx?url=${encodeURIComponent(url)}&output=json&fl=timestamp&limit=1`;
             log.log("wayback:cdx-first-start", { url });
-            const firstResponse = await fetch(firstUrl);
+            const firstResponse = await fetchWithTimeout(firstUrl);
             if (firstResponse.ok) {
               const firstData = await firstResponse.json();
               if (Array.isArray(firstData) && firstData.length > 1) {
