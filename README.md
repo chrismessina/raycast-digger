@@ -180,9 +180,7 @@ Enable "Debug Logging" in preferences to see detailed logs in the Raycast consol
 Contributions are welcome! Please:
 
 1. Fork the repository
-
 2. Create a feature branch
-
 3. Submit a pull request
 
 For bugs or feature requests, [open an issue](https://github.com/chrismessina/raycast-digger/issues).

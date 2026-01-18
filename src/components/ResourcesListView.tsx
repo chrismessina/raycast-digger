@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { List, ActionPanel, Action, Icon, Keyboard } from "@raycast/api";
 import { DiggerResult, DataFeedsData } from "../types";
-import { FONT_PROVIDER_NAMES } from "../utils/fontUtils";
+import { getFontDisplayName, getFontSubtitle } from "../utils/fontUtils";
 import { truncateText } from "../utils/formatters";
 
-type ResourceType = "all" | "stylesheets" | "scripts" | "feeds" | "fonts";
+type ResourceType = "all" | "fonts" | "stylesheets" | "scripts";
 
 interface ResourcesListViewProps {
   data: DiggerResult;
@@ -81,13 +81,11 @@ function buildResourceItems(data: DiggerResult): ResourceItem[] {
   // Add fonts
   if (data.resources?.fonts) {
     for (const font of data.resources.fonts) {
-      const providerName = FONT_PROVIDER_NAMES[font.provider];
-      const variantsText = font.variants ? font.variants.join(", ") : undefined;
       items.push({
         type: "font",
         url: font.url,
-        filename: font.family,
-        subtitle: variantsText ? `${providerName} • ${variantsText}` : providerName,
+        filename: getFontDisplayName(font),
+        subtitle: getFontSubtitle(font),
       });
     }
   }
@@ -97,7 +95,6 @@ function buildResourceItems(data: DiggerResult): ResourceItem[] {
 
 function filterItems(items: ResourceItem[], filter: ResourceType): ResourceItem[] {
   if (filter === "all") return items;
-  if (filter === "feeds") return items.filter((item) => item.type === "feed");
   if (filter === "stylesheets") return items.filter((item) => item.type === "stylesheet");
   if (filter === "scripts") return items.filter((item) => item.type === "script");
   if (filter === "fonts") return items.filter((item) => item.type === "font");
@@ -148,7 +145,7 @@ export function ResourcesListView({ data, initialFilter = "all" }: ResourcesList
     {} as Record<string, ResourceItem[]>,
   );
 
-  const sectionOrder: ResourceItem["type"][] = ["stylesheet", "script", "feed", "font"];
+  const sectionOrder: ResourceItem["type"][] = ["font", "stylesheet", "script"];
 
   return (
     <List
@@ -157,10 +154,9 @@ export function ResourcesListView({ data, initialFilter = "all" }: ResourcesList
       searchBarAccessory={
         <List.Dropdown tooltip="Filter by Type" value={filter} onChange={(value) => setFilter(value as ResourceType)}>
           <List.Dropdown.Item title="All Resources" value="all" />
+          <List.Dropdown.Item title="Fonts" value="fonts" icon={Icon.Text} />
           <List.Dropdown.Item title="Stylesheets" value="stylesheets" icon={Icon.Brush} />
           <List.Dropdown.Item title="Scripts" value="scripts" icon={Icon.Code} />
-          <List.Dropdown.Item title="Feeds" value="feeds" icon={Icon.Rss} />
-          <List.Dropdown.Item title="Fonts" value="fonts" icon={Icon.Text} />
         </List.Dropdown>
       }
     >

@@ -20,7 +20,13 @@ import {
 import { detectBotProtection } from "../utils/botDetection";
 import { normalizeUrl, getRootResourceUrl } from "../utils/urlUtils";
 import { performDNSLookup, getTLSCertificateInfo, CertificateInfo } from "../utils/dnsUtils";
-import { parseFontsFromUrl, extractPreloadFont, deduplicateFonts } from "../utils/fontUtils";
+import {
+  parseFontsFromUrl,
+  extractPreloadFont,
+  deduplicateFonts,
+  parseFontFaceFromCSS,
+  extractInlineStyles,
+} from "../utils/fontUtils";
 import { getLogger } from "../utils/logger";
 
 const log = getLogger("fetch");
@@ -694,8 +700,20 @@ export function useFetchSite(url?: string) {
 
         // 8. Extract fonts from various sources
         const fonts: FontAsset[] = [];
+        log.log("parse:fonts:start", { url: normalizedUrl });
 
-        // 8a. Google Fonts, Bunny Fonts, Adobe Fonts from stylesheet links
+        // 8a. Parse @font-face from inline <style> tags (most reliable source)
+        const inlineStyles = extractInlineStyles(streamedHtml);
+        for (const styleContent of inlineStyles) {
+          const inlineFonts = parseFontFaceFromCSS(styleContent, normalizedUrl);
+          fonts.push(...inlineFonts);
+        }
+        log.log("parse:fonts:inline-styles", {
+          styleCount: inlineStyles.length,
+          fontsFound: fonts.length,
+        });
+
+        // 8b. Google Fonts, Bunny Fonts, Adobe Fonts from stylesheet links
         $('link[rel="stylesheet"]').each((_, el) => {
           const href = $(el).attr("href");
           if (href) {
@@ -705,7 +723,7 @@ export function useFetchSite(url?: string) {
           }
         });
 
-        // 8b. Font preload links
+        // 8c. Font preload links (fallback if @font-face not found)
         $('link[rel="preload"][as="font"]').each((_, el) => {
           const href = $(el).attr("href");
           if (href) {
@@ -715,7 +733,7 @@ export function useFetchSite(url?: string) {
           }
         });
 
-        // 8c. Check scripts for Adobe Fonts/Typekit
+        // 8d. Check scripts for Adobe Fonts/Typekit
         $("script[src]").each((_, el) => {
           const src = $(el).attr("src");
           if (src) {
@@ -727,10 +745,15 @@ export function useFetchSite(url?: string) {
 
         // Deduplicate fonts
         const deduplicatedFonts = deduplicateFonts(fonts);
-        log.log("parse:fonts", {
+        log.log("parse:fonts:complete", {
           rawCount: fonts.length,
           deduplicatedCount: deduplicatedFonts.length,
-          families: deduplicatedFonts.map((f) => f.family),
+          fonts: deduplicatedFonts.map((f) => ({
+            family: f.family,
+            variants: f.variants,
+            format: f.format,
+            provider: f.provider,
+          })),
         });
 
         // Extract feed URLs

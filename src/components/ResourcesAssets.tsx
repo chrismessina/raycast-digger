@@ -1,8 +1,9 @@
 import { List, Icon, Color, Action } from "@raycast/api";
 import { getProgressIcon } from "@raycast/utils";
 import { DiggerResult, FontAsset } from "../types";
-import { FONT_PROVIDER_NAMES } from "../utils/fontUtils";
+import { getFontDisplayName } from "../utils/fontUtils";
 import { Actions } from "../actions";
+import { ResourcesViewActions } from "../actions/ResourceViewActions";
 import { truncateText } from "../utils/formatters";
 import { getDeniedAccessMessage } from "../utils/botDetection";
 import { ResourcesListView } from "./ResourcesListView";
@@ -103,6 +104,12 @@ export function ResourcesAssets({ data, onRefresh, progress }: ResourcesAssetsPr
                   target={<ImagesGridView images={resources!.images!} siteUrl={data.url} />}
                 />
               )}
+              <ResourcesViewActions
+                data={data}
+                hasFonts={hasFonts}
+                hasStylesheets={hasStylesheets}
+                hasScripts={hasScripts}
+              />
               {hasMany && (
                 <Action.Push title="View All Resources" icon={Icon.List} target={<ResourcesListView data={data} />} />
               )}
@@ -152,6 +159,85 @@ function ResourcesAssetsDetail({
               <List.Item.Detail.Metadata.Separator />
             </>
           )}
+          <List.Item.Detail.Metadata.Label
+            title={`Images${hasImages ? ` (${uniqueImageCount} unique)` : ""}`}
+            icon={
+              isChallengePage
+                ? { source: Icon.ExclamationMark, tintColor: Color.Orange }
+                : hasImages
+                  ? { source: Icon.Check, tintColor: Color.Green }
+                  : { source: Icon.Xmark, tintColor: Color.Red }
+            }
+          />
+          {hasImages &&
+            (() => {
+              // Deduplicate by URL (without query string) for display
+              const seen = new Set<string>();
+              const uniqueForDisplay = resources!.images!.filter((img) => {
+                const urlWithoutQuery = img.src.split("?")[0];
+                if (seen.has(urlWithoutQuery)) return false;
+                seen.add(urlWithoutQuery);
+                return true;
+              });
+              return (
+                <>
+                  {uniqueForDisplay.slice(0, 5).map((img, index) => {
+                    // Extract filename and strip query string
+                    const urlWithoutQuery = img.src.split("?")[0];
+                    const filename = urlWithoutQuery.split("/").pop() || img.src;
+                    const absoluteUrl = resolveUrl(img.src, data.url);
+                    return (
+                      <List.Item.Detail.Metadata.Link
+                        key={index}
+                        title={img.type ? img.type : img.alt ? truncateText(img.alt, 20) : "No alt"}
+                        target={absoluteUrl}
+                        text={filename}
+                      />
+                    );
+                  })}
+                  {uniqueForDisplay.length > 5 && (
+                    <List.Item.Detail.Metadata.Label title="" text={`...and ${uniqueForDisplay.length - 5} more`} />
+                  )}
+                </>
+              );
+            })()}
+          {!hasImages && (
+            <List.Item.Detail.Metadata.Label title="" text={isChallengePage ? deniedMessage : "No images found"} />
+          )}
+
+          <List.Item.Detail.Metadata.Separator />
+          <List.Item.Detail.Metadata.Label
+            title={`Fonts${hasFonts ? ` (${resources!.fonts!.length})` : ""}`}
+            icon={
+              isChallengePage
+                ? { source: Icon.ExclamationMark, tintColor: Color.Orange }
+                : hasFonts
+                  ? { source: Icon.Check, tintColor: Color.Green }
+                  : { source: Icon.Xmark, tintColor: Color.Red }
+            }
+          />
+          {hasFonts &&
+            resources!.fonts!.slice(0, 5).map((font: FontAsset, index: number) => {
+              const displayName = getFontDisplayName(font);
+              const formatText = font.format ? font.format.toUpperCase() : "Font";
+              const absoluteUrl = resolveUrl(font.url, data.url);
+              return (
+                <List.Item.Detail.Metadata.Link
+                  key={index}
+                  title={displayName}
+                  target={absoluteUrl}
+                  text={formatText}
+                />
+              );
+            })}
+          {hasFonts && resources!.fonts!.length > 5 && (
+            <List.Item.Detail.Metadata.Label title="" text={`...and ${resources!.fonts!.length - 5} more`} />
+          )}
+          {!hasFonts && (
+            <List.Item.Detail.Metadata.Label title="" text={isChallengePage ? deniedMessage : "No fonts found"} />
+          )}
+
+          <List.Item.Detail.Metadata.Separator />
           <List.Item.Detail.Metadata.Label
             title={`Stylesheets${hasStylesheets ? ` (${resources!.stylesheets!.length})` : ""}`}
             icon={
@@ -231,85 +317,6 @@ function ResourcesAssetsDetail({
             })()}
           {!hasScripts && (
             <List.Item.Detail.Metadata.Label title="" text={isChallengePage ? deniedMessage : "No scripts found"} />
-          )}
-
-          <List.Item.Detail.Metadata.Separator />
-          <List.Item.Detail.Metadata.Label
-            title={`Images${hasImages ? ` (${uniqueImageCount} unique)` : ""}`}
-            icon={
-              isChallengePage
-                ? { source: Icon.ExclamationMark, tintColor: Color.Orange }
-                : hasImages
-                  ? { source: Icon.Check, tintColor: Color.Green }
-                  : { source: Icon.Xmark, tintColor: Color.Red }
-            }
-          />
-          {hasImages &&
-            (() => {
-              // Deduplicate by URL (without query string) for display
-              const seen = new Set<string>();
-              const uniqueForDisplay = resources!.images!.filter((img) => {
-                const urlWithoutQuery = img.src.split("?")[0];
-                if (seen.has(urlWithoutQuery)) return false;
-                seen.add(urlWithoutQuery);
-                return true;
-              });
-              return (
-                <>
-                  {uniqueForDisplay.slice(0, 5).map((img, index) => {
-                    // Extract filename and strip query string
-                    const urlWithoutQuery = img.src.split("?")[0];
-                    const filename = urlWithoutQuery.split("/").pop() || img.src;
-                    const absoluteUrl = resolveUrl(img.src, data.url);
-                    return (
-                      <List.Item.Detail.Metadata.Link
-                        key={index}
-                        title={img.type ? img.type : img.alt ? truncateText(img.alt, 20) : "No alt"}
-                        target={absoluteUrl}
-                        text={filename}
-                      />
-                    );
-                  })}
-                  {uniqueForDisplay.length > 5 && (
-                    <List.Item.Detail.Metadata.Label title="" text={`...and ${uniqueForDisplay.length - 5} more`} />
-                  )}
-                </>
-              );
-            })()}
-          {!hasImages && (
-            <List.Item.Detail.Metadata.Label title="" text={isChallengePage ? deniedMessage : "No images found"} />
-          )}
-
-          <List.Item.Detail.Metadata.Separator />
-          <List.Item.Detail.Metadata.Label
-            title={`Fonts${hasFonts ? ` (${resources!.fonts!.length})` : ""}`}
-            icon={
-              isChallengePage
-                ? { source: Icon.ExclamationMark, tintColor: Color.Orange }
-                : hasFonts
-                  ? { source: Icon.Check, tintColor: Color.Green }
-                  : { source: Icon.Xmark, tintColor: Color.Red }
-            }
-          />
-          {hasFonts &&
-            resources!.fonts!.slice(0, 5).map((font: FontAsset, index: number) => {
-              const providerName = FONT_PROVIDER_NAMES[font.provider];
-              const variantsText = font.variants ? ` (${font.variants.join(", ")})` : "";
-              const absoluteUrl = resolveUrl(font.url, data.url);
-              return (
-                <List.Item.Detail.Metadata.Link
-                  key={index}
-                  title={providerName}
-                  target={absoluteUrl}
-                  text={`${font.family}${variantsText}`}
-                />
-              );
-            })}
-          {hasFonts && resources!.fonts!.length > 5 && (
-            <List.Item.Detail.Metadata.Label title="" text={`...and ${resources!.fonts!.length - 5} more`} />
-          )}
-          {!hasFonts && (
-            <List.Item.Detail.Metadata.Label title="" text={isChallengePage ? deniedMessage : "No fonts found"} />
           )}
         </List.Item.Detail.Metadata>
       }

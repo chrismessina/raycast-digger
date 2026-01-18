@@ -1,6 +1,8 @@
 import { Action, Icon } from "@raycast/api";
 import { ResourceDetailView } from "../components/ResourceDetailView";
 import { SitemapDetailView } from "../components/SitemapDetailView";
+import { ResourcesListView } from "../components/ResourcesListView";
+import { DiggerResult } from "../types";
 
 /**
  * Props for the ResourceViewAction component
@@ -94,6 +96,61 @@ export function DiscoverabilityActions({ sitemapUrl, robotsUrl, llmsTxtUrl }: Di
           resourceName="llms.txt"
           icon={Icon.Document}
           renderAsMarkdown
+        />
+      )}
+    </>
+  );
+}
+
+/**
+ * Props for the ResourcesViewActions component
+ */
+interface ResourcesViewActionsProps {
+  /** The digger result data containing resources */
+  data: DiggerResult;
+  /** Whether fonts are available */
+  hasFonts?: boolean;
+  /** Whether stylesheets are available */
+  hasStylesheets?: boolean;
+  /** Whether scripts are available */
+  hasScripts?: boolean;
+}
+
+/**
+ * Section-specific actions for the Resources & Assets component
+ * Provides actions to view all fonts, stylesheets, or scripts in a filtered list view
+ */
+export function ResourcesViewActions({
+  data,
+  hasFonts,
+  hasStylesheets,
+  hasScripts,
+}: ResourcesViewActionsProps) {
+  if (!hasFonts && !hasStylesheets && !hasScripts) {
+    return null;
+  }
+
+  return (
+    <>
+      {hasFonts && (
+        <Action.Push
+          title="View All Fonts"
+          icon={Icon.Text}
+          target={<ResourcesListView data={data} initialFilter="fonts" />}
+        />
+      )}
+      {hasStylesheets && (
+        <Action.Push
+          title="View All Stylesheets"
+          icon={Icon.Brush}
+          target={<ResourcesListView data={data} initialFilter="stylesheets" />}
+        />
+      )}
+      {hasScripts && (
+        <Action.Push
+          title="View All Scripts"
+          icon={Icon.Code}
+          target={<ResourcesListView data={data} initialFilter="scripts" />}
         />
       )}
     </>

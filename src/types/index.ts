@@ -93,6 +93,8 @@ export interface FontAsset {
   variants?: string[];
   /** Font format if specified (e.g., "woff2", "ttf") */
   format?: string;
+  /** Font style if detectable (e.g., "italic", "oblique") */
+  style?: string;
 }
 
 /** Represents an image asset found in the head of the page */
