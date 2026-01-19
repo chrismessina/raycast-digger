@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { Grid, ActionPanel, Action, Icon, Color, Keyboard } from "@raycast/api";
 import { ImageAsset, ImageAssetType } from "../types";
+import { resolveUrl } from "../utils/urlUtils";
 
 interface ImagesGridViewProps {
   images: ImageAsset[];
@@ -107,7 +108,8 @@ export function ImagesGridView({ images, siteUrl }: ImagesGridViewProps) {
       }
     >
       {filteredImages.map((img, index) => {
-        const urlWithoutQuery = img.src.split("?")[0];
+        const absoluteUrl = resolveUrl(img.src, siteUrl);
+        const urlWithoutQuery = absoluteUrl.split("?")[0];
         const filename = urlWithoutQuery.split("/").pop() || img.src;
         const subtitle = getTypeLabel(img.type) + (img.sizes ? ` • ${img.sizes}` : "");
 
@@ -115,17 +117,17 @@ export function ImagesGridView({ images, siteUrl }: ImagesGridViewProps) {
           <Grid.Item
             key={index}
             content={{
-              source: img.src,
+              source: absoluteUrl,
               fallback: getTypeIcon(img.type).source,
             }}
             title={filename.length > 30 ? filename.slice(0, 27) + "..." : filename}
             subtitle={subtitle}
             actions={
               <ActionPanel>
-                <Action.OpenInBrowser title="Open Image" url={img.src} shortcut={Keyboard.Shortcut.Common.Open} />
+                <Action.OpenInBrowser title="Open Image" url={absoluteUrl} shortcut={Keyboard.Shortcut.Common.Open} />
                 <Action.CopyToClipboard
                   title="Copy Image URL"
-                  content={img.src}
+                  content={absoluteUrl}
                   shortcut={Keyboard.Shortcut.Common.Copy}
                 />
                 <Action.OpenInBrowser title="Open Site" url={siteUrl} icon={Icon.Globe} />
