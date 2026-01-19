@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { List, ActionPanel, Action, Icon, Keyboard } from "@raycast/api";
-import { DiggerResult, DataFeedsData } from "../types";
+import { DiggerResult } from "../types";
 import { getFontDisplayName, getFontSubtitle } from "../utils/fontUtils";
 import { truncateText } from "../utils/formatters";
 
@@ -57,25 +57,6 @@ function buildResourceItems(data: DiggerResult): ResourceItem[] {
         subtitle: attrs.length > 0 ? attrs.join(", ") : "sync",
       });
     }
-  }
-
-  // Add feeds
-  if (data.dataFeeds) {
-    const addFeeds = (feeds: DataFeedsData["rss"], feedType: string) => {
-      if (feeds) {
-        for (const feed of feeds) {
-          items.push({
-            type: "feed",
-            url: feed.url,
-            filename: feed.title || getFilename(feed.url),
-            subtitle: feedType,
-          });
-        }
-      }
-    };
-    addFeeds(data.dataFeeds.rss, "RSS");
-    addFeeds(data.dataFeeds.atom, "Atom");
-    addFeeds(data.dataFeeds.json, "JSON");
   }
 
   // Add fonts
