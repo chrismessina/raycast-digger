@@ -331,10 +331,7 @@ export function extractPreloadFont(href: string, type?: string): FontAsset {
     }
 
     // Clean up remaining name for family
-    family = baseName
-      .replace(/[-_]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
+    family = baseName.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
 
     // Capitalize first letter of each word
     if (family) {

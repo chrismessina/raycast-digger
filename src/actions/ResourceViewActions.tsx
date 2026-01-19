@@ -120,12 +120,7 @@ interface ResourcesViewActionsProps {
  * Section-specific actions for the Resources & Assets component
  * Provides actions to view all fonts, stylesheets, or scripts in a filtered list view
  */
-export function ResourcesViewActions({
-  data,
-  hasFonts,
-  hasStylesheets,
-  hasScripts,
-}: ResourcesViewActionsProps) {
+export function ResourcesViewActions({ data, hasFonts, hasStylesheets, hasScripts }: ResourcesViewActionsProps) {
   if (!hasFonts && !hasStylesheets && !hasScripts) {
     return null;
   }
