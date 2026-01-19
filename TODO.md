@@ -437,17 +437,17 @@ Section: Fonts (3)
 
 ## Data Categories Summary
 
-| Category | Icon | Key Data |
-| -------- | ---- | -------- |
-| Overview | 🌐 | Status, URL, timing, favicon |
-| Metadata & Semantics | 📝 | Title, description, OG, Twitter, JSON-LD |
-| Discoverability | 🔍 | robots.txt, sitemap.xml, meta robots |
-| Resources & Assets | 📦 | Icons, manifest, feeds |
-| Networking & Security | 🔒 | HTTP headers, security headers |
-| DNS & Certificates | 🌍 | DNS records, TLS cert |
-| Performance & Signals | ⚡ | Timing, resource hints |
-| History & Evolution | 📜 | Wayback Machine data |
-| Data Feeds & API | 📡 | RSS, JSON-LD, API hints |
+| Category              | Icon | Key Data                                 |
+| --------------------- | ---- | ---------------------------------------- |
+| Overview              | 🌐   | Status, URL, timing, favicon             |
+| Metadata & Semantics  | 📝   | Title, description, OG, Twitter, JSON-LD |
+| Discoverability       | 🔍   | robots.txt, sitemap.xml, meta robots     |
+| Resources & Assets    | 📦   | Icons, manifest, feeds                   |
+| Networking & Security | 🔒   | HTTP headers, security headers           |
+| DNS & Certificates    | 🌍   | DNS records, TLS cert                    |
+| Performance & Signals | ⚡   | Timing, resource hints                   |
+| History & Evolution   | 📜   | Wayback Machine data                     |
+| Data Feeds & API      | 📡   | RSS, JSON-LD, API hints                  |
 
 ---
 

@@ -49,7 +49,7 @@ Digger surfaces contextual information about any website without needing to open
 
 - Stylesheets and scripts
 - Favicon, Apple Touch Icons, and Open Graph images
-- Font detection (Google Fonts, Adobe Fonts, Bunny Fonts, Font Awesome, custom)
+- Font detection (Google Fonts, Adobe Fonts, Bunny Fonts, Fontshare, Fonts.com, Font Awesome, custom)
 - Theme color
 
 ### HTTP Headers
@@ -75,8 +75,8 @@ Digger surfaces contextual information about any website without needing to open
 ### Data Feeds & API
 
 - RSS, Atom, and JSON feed detection
-- llms.txt support for AI/LLM context
-- Host metadata (RFC 6415)
+- JSON-LD structured data viewer
+- Host metadata discovery (RFC 6415 XRD/JRD)
 
 ## Installation
 
@@ -102,22 +102,22 @@ Or install directly: [Install Digger](https://www.raycast.com/chrismessina/digge
 
 Configure these in Raycast preferences (`⌘ ,`):
 
-| Option | Description |
-| ------ | ----------- |
-| **Auto Load from Clipboard** | Automatically analyze URLs copied to clipboard |
-| **Auto Load from Selected Text** | Analyze highlighted URLs in any app |
-| **Browser Extension Support** | Analyze the current browser tab (requires [Raycast Browser Extension](https://www.raycast.com/browser-extension)) |
+| Option                           | Description                                                                                                       |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **Auto Load from Clipboard**     | Automatically analyze URLs copied to clipboard                                                                    |
+| **Auto Load from Selected Text** | Analyze highlighted URLs in any app                                                                               |
+| **Browser Extension Support**    | Analyze the current browser tab (requires [Raycast Browser Extension](https://www.raycast.com/browser-extension)) |
 
 ### Keyboard Shortcuts
 
-| Shortcut | Action |
-| -------- | ------ |
+| Shortcut  | Action                    |
+| --------- | ------------------------- |
 | `↑` / `↓` | Navigate between sections |
-| `⌘ R` | Refresh data |
-| `⌘ C` | Copy URL |
-| `⌘ ⇧ J` | Copy as JSON |
-| `⌘ ⇧ M` | Copy as Markdown |
-| `⌘ O` | Open in browser |
+| `⌘ R`     | Refresh data              |
+| `⌘ C`     | Copy URL                  |
+| `⌘ ⇧ J`   | Copy as JSON              |
+| `⌘ ⇧ M`   | Copy as Markdown          |
+| `⌘ O`     | Open in browser           |
 
 ## Examples
 
@@ -131,13 +131,12 @@ Digger is useful for:
 
 ## Preferences
 
-| Preference | Description | Default |
-|-----------|-------------|---------|
-| Download Path | Where to save exported files | `~/Downloads` |
-| Auto Load from Clipboard | Load URLs from clipboard automatically | Off |
-| Auto Load from Selected Text | Load URLs from selected text | Off |
-| Browser Extension Support | Load URL from active browser tab | Off |
-| Debug Logging | Enable verbose logging for troubleshooting | Off |
+| Preference                   | Description                                | Default |
+| ---------------------------- | ------------------------------------------ | ------- |
+| Auto Load from Clipboard     | Load URLs from clipboard automatically     | Off     |
+| Auto Load from Selected Text | Load URLs from selected text               | Off     |
+| Browser Extension Support    | Load URL from active browser tab           | Off     |
+| Debug Logging                | Enable verbose logging for troubleshooting | Off     |
 
 ## Requirements
 
@@ -149,7 +148,7 @@ Digger is useful for:
 
 Digger fetches websites directly from your machine. No data is sent to third-party servers except:
 
-- **Wayback Machine API** — To retrieve archive history (optional, can be disabled)
+- **Wayback Machine API** — To retrieve archive history
 - **DNS lookups** — Standard system DNS resolution
 
 No analytics or tracking is included.
