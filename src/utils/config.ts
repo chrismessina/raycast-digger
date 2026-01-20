@@ -11,6 +11,8 @@ export const TIMEOUTS = {
   HOST_META: 5000,
   /** TLS certificate info socket connection */
   TLS_SOCKET: 5000,
+  /** Wayback Machine API requests */
+  WAYBACK_FETCH: 10000,
 } as const;
 
 /**
@@ -35,4 +37,8 @@ export const LIMITS = {
   MIN_HEAD_BYTES: 16 * 1024, // 16KB
   /** Default port for TLS certificate checks */
   TLS_PORT: 443,
+  /** Maximum resources (stylesheets, scripts, images) to parse per page */
+  MAX_RESOURCES: 50,
+  /** Maximum entries to display in sitemap views */
+  MAX_DISPLAY_ENTRIES: 100,
 } as const;

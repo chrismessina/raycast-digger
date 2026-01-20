@@ -5,6 +5,7 @@ import { fetchHeadOnlyWithFallback, fetchWithTimeout, fetchTextResource } from "
 import { fetchWaybackMachineData } from "../utils/waybackUtils";
 import { fetchHostMetadata } from "../utils/hostMetaUtils";
 import { useCache } from "./useCache";
+import { LIMITS } from "../utils/config";
 import {
   DiggerResult,
   OverviewData,
@@ -474,11 +475,9 @@ export function useFetchSite(url?: string) {
         updateProgress("discoverability", 1);
         updateData({ discoverability });
 
-        const MAX_RESOURCES = 50; // Limit to prevent memory issues on large sites
-
         const stylesheets: Array<{ href: string; media?: string }> = [];
         $('link[rel="stylesheet"]')
-          .slice(0, MAX_RESOURCES)
+          .slice(0, LIMITS.MAX_RESOURCES)
           .each((_, el) => {
             const href = $(el).attr("href");
             if (href) {
@@ -491,7 +490,7 @@ export function useFetchSite(url?: string) {
 
         const scripts: Array<{ src: string; async?: boolean; defer?: boolean; type?: string }> = [];
         $("script[src]")
-          .slice(0, MAX_RESOURCES)
+          .slice(0, LIMITS.MAX_RESOURCES)
           .each((_, el) => {
             const src = $(el).attr("src");
             if (src) {
@@ -687,7 +686,7 @@ export function useFetchSite(url?: string) {
 
         const links: Array<{ href: string; rel?: string }> = [];
         $('link[rel]:not([rel="stylesheet"]):not([rel="alternate"])')
-          .slice(0, MAX_RESOURCES)
+          .slice(0, LIMITS.MAX_RESOURCES)
           .each((_, el) => {
             const href = $(el).attr("href");
             if (href) {

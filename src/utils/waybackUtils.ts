@@ -1,17 +1,15 @@
 import { HistoryData } from "../types";
 import { getLogger } from "./logger";
+import { TIMEOUTS } from "./config";
 
 const log = getLogger("wayback");
 const ARCHIVE_BASE_URL = "https://archive.org";
 const WAYBACK_BASE_URL = "https://web.archive.org";
 
-// Timeout for Wayback Machine API requests (in milliseconds)
-const WAYBACK_TIMEOUT_MS = 10000;
-
 /**
  * Fetch with timeout - aborts if request takes too long
  */
-async function fetchWithTimeout(url: string, timeoutMs: number = WAYBACK_TIMEOUT_MS): Promise<Response> {
+async function fetchWithTimeout(url: string, timeoutMs: number = TIMEOUTS.WAYBACK_FETCH): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
