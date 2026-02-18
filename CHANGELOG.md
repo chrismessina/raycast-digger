@@ -1,6 +1,6 @@
 # Digger Changelog
 
-## [Add Content Signals and Payment Required (x402) detection]
+## [Add Content Signals and Payment Required (x402) detection] - {PR_MERGE_DATE}
 
 ### Added
 
@@ -10,4 +10,4 @@
   - **HTTP Headers** section: supporting detail listing the raw values of x402 protocol headers
 - Payment Required signals are included in the Markdown report export (`⌘ ⇧ M`)
 
-## [Initial Version] - {PR_MERGE_DATE}
+## [Initial Version] - 2026-01-27
