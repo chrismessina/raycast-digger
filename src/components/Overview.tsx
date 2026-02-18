@@ -13,8 +13,8 @@ interface OverviewProps {
 }
 
 export function Overview({ data, onRefresh, overallProgress }: OverviewProps) {
-  // Show progress while loading, show favicon when complete
-  const isStillLoading = overallProgress < 1;
+  // Show favicon once data is available, otherwise show progress
+  const isStillLoading = !data;
   const favicon = data?.url ? getFavicon(data.url) : null;
   const progressIcon = isStillLoading ? getProgressIcon(overallProgress, Color.Blue) : favicon ?? Icon.Globe;
 
