@@ -1,6 +1,6 @@
 import { HistoryData } from "../types";
+import { isTransientError, TIMEOUTS, withRetry } from "./config";
 import { getLogger } from "./logger";
-import { TIMEOUTS, withRetry, isTransientError } from "./config";
 
 const log = getLogger("wayback");
 const ARCHIVE_BASE_URL = "https://archive.org";

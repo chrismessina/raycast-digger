@@ -1,4 +1,4 @@
-import { List, ActionPanel, Action, Icon, Keyboard } from "@raycast/api";
+import { Action, ActionPanel, Icon, Keyboard, List } from "@raycast/api";
 
 interface HeadersListViewProps {
   headers: Record<string, string>;

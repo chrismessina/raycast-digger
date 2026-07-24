@@ -1,5 +1,5 @@
-import { Action, Icon, open, LaunchType } from "@raycast/api";
 import { crossLaunchCommand } from "raycast-cross-extension";
+import { Action, Icon, LaunchType, open } from "@raycast/api";
 
 interface WaybackMachineActionsProps {
   url: string;

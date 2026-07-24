@@ -1,5 +1,5 @@
+import { LIMITS, TIMEOUTS } from "./config";
 import { getLogger } from "./logger";
-import { TIMEOUTS, LIMITS } from "./config";
 
 const log = getLogger("fetcher");
 

@@ -1,16 +1,16 @@
-import { List, Clipboard, getPreferenceValues, getSelectedText, BrowserExtension } from "@raycast/api";
 import { useEffect, useState } from "react";
-import { validateUrl, extractUrl } from "./utils/urlUtils";
-import { useFetchSite, LoadingProgress } from "./hooks/useFetchSite";
-import { Overview } from "./components/Overview";
-import { MetadataSemantics } from "./components/MetadataSemantics";
-import { Discoverability } from "./components/Discoverability";
-import { ResourcesAssets } from "./components/ResourcesAssets";
-import { HTTPHeaders } from "./components/HTTPHeaders";
-import { DNSCertificates } from "./components/DNSCertificates";
-import { WaybackMachine } from "./components/WaybackMachine";
+import { BrowserExtension, Clipboard, getPreferenceValues, getSelectedText, List } from "@raycast/api";
 import { DataFeedsAPI } from "./components/DataFeedsAPI";
+import { Discoverability } from "./components/Discoverability";
+import { DNSCertificates } from "./components/DNSCertificates";
 import { ErrorDisplay, PartialErrorBanner } from "./components/ErrorDisplay";
+import { HTTPHeaders } from "./components/HTTPHeaders";
+import { MetadataSemantics } from "./components/MetadataSemantics";
+import { Overview } from "./components/Overview";
+import { ResourcesAssets } from "./components/ResourcesAssets";
+import { WaybackMachine } from "./components/WaybackMachine";
+import { LoadingProgress, useFetchSite } from "./hooks/useFetchSite";
+import { extractUrl, validateUrl } from "./utils/urlUtils";
 
 export type { LoadingProgress };
 

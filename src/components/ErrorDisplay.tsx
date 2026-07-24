@@ -1,4 +1,4 @@
-import { List, ActionPanel, Action, Icon, Color } from "@raycast/api";
+import { Action, ActionPanel, Color, Icon, List } from "@raycast/api";
 import { ErrorType, FetchError } from "../types";
 
 interface ErrorDisplayProps {

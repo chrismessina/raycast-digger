@@ -1,36 +1,36 @@
-import { useState, useCallback, useRef } from "react";
 import * as cheerio from "cheerio";
+import { useCallback, useRef, useState } from "react";
 import { showFailureToast } from "@raycast/utils";
-import { fetchHeadOnlyWithFallback, fetchWithTimeout, fetchTextResource } from "../utils/fetcher";
-import { fetchWaybackMachineData } from "../utils/waybackUtils";
-import { fetchHostMetadata } from "../utils/hostMetaUtils";
-import { useCache } from "./useCache";
-import { LIMITS } from "../utils/config";
 import {
-  DiggerResult,
-  OverviewData,
-  MetadataData,
-  DiscoverabilityData,
-  ContentSignalsData,
-  PaymentSignalsData,
   BotProtectionData,
-  ImageAsset,
-  FontAsset,
-  FetchError,
-  FetchCategory,
+  ContentSignalsData,
+  DiggerResult,
+  DiscoverabilityData,
   ErrorType,
+  FetchCategory,
+  FetchError,
+  FontAsset,
+  ImageAsset,
+  MetadataData,
+  OverviewData,
+  PaymentSignalsData,
 } from "../types";
 import { detectBotProtection } from "../utils/botDetection";
-import { normalizeUrl, getRootResourceUrl } from "../utils/urlUtils";
-import { performDNSLookup, getTLSCertificateInfo, CertificateInfo } from "../utils/dnsUtils";
+import { LIMITS } from "../utils/config";
+import { CertificateInfo, getTLSCertificateInfo, performDNSLookup } from "../utils/dnsUtils";
+import { fetchHeadOnlyWithFallback, fetchTextResource, fetchWithTimeout } from "../utils/fetcher";
 import {
-  parseFontsFromUrl,
-  extractPreloadFont,
   deduplicateFonts,
-  parseFontFaceFromCSS,
   extractInlineStyles,
+  extractPreloadFont,
+  parseFontFaceFromCSS,
+  parseFontsFromUrl,
 } from "../utils/fontUtils";
+import { fetchHostMetadata } from "../utils/hostMetaUtils";
 import { getLogger } from "../utils/logger";
+import { getRootResourceUrl, normalizeUrl } from "../utils/urlUtils";
+import { fetchWaybackMachineData } from "../utils/waybackUtils";
+import { useCache } from "./useCache";
 
 const log = getLogger("fetch");
 

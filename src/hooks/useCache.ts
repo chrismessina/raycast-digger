@@ -1,7 +1,7 @@
 import { LocalStorage } from "@raycast/api";
 import { CacheEntry, DiggerResult } from "../types";
-import { getCacheKey } from "../utils/urlUtils";
 import { CACHE } from "../utils/config";
+import { getCacheKey } from "../utils/urlUtils";
 
 interface CacheIndex {
   keys: string[];
