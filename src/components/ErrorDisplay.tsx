@@ -1,4 +1,4 @@
-import { Action, ActionPanel, Color, Icon, List } from "@raycast/api";
+import { Action, ActionPanel, Color, Icon, Keyboard, List } from "@raycast/api";
 import { ErrorType, FetchError } from "../types";
 
 interface ErrorDisplayProps {
@@ -126,13 +126,13 @@ ${hasPartialData ? "\n---\n*Some data was retrieved successfully. Scroll down to
               title="Retry"
               icon={Icon.ArrowClockwise}
               onAction={onRetry}
-              shortcut={{ modifiers: ["cmd"], key: "r" }}
+              shortcut={Keyboard.Shortcut.Common.Refresh}
             />
           )}
           <Action.CopyToClipboard
             title="Copy Error Message"
             content={error}
-            shortcut={{ modifiers: ["cmd"], key: "c" }}
+            shortcut={{ macOS: { modifiers: ["cmd"], key: "c" }, Windows: { modifiers: ["ctrl"], key: "c" } }}
           />
         </ActionPanel>
       }
@@ -149,6 +149,7 @@ export function PartialErrorBanner({ fetchErrors, onRetry }: PartialErrorBannerP
   if (fetchErrors.length === 0) return null;
 
   const failedCategories = fetchErrors.map((e) => e.description).join(", ");
+  const errorDetails = fetchErrors.map((e) => `${e.description}: ${e.message}`).join("\n");
 
   return (
     <List.Item
@@ -162,7 +163,12 @@ export function PartialErrorBanner({ fetchErrors, onRetry }: PartialErrorBannerP
             title="Retry All"
             icon={Icon.ArrowClockwise}
             onAction={onRetry}
-            shortcut={{ modifiers: ["cmd"], key: "r" }}
+            shortcut={Keyboard.Shortcut.Common.Refresh}
+          />
+          <Action.CopyToClipboard
+            title="Copy Error Details"
+            content={errorDetails}
+            shortcut={Keyboard.Shortcut.Common.Copy}
           />
         </ActionPanel>
       }

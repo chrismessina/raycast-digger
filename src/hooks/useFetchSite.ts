@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 import { useCallback, useRef, useState } from "react";
+import { Clipboard, Toast } from "@raycast/api";
 import { showFailureToast } from "@raycast/utils";
 import {
   BotProtectionData,
@@ -1005,7 +1006,17 @@ export function useFetchSite(url?: string) {
         setError(classified.message);
         setErrorType(classified.type);
         addFetchError("main", err, classified.recoverable);
-        await showFailureToast(classified.message, { title: "Fetch Error" });
+        await showFailureToast(classified.message, {
+          title: "Fetch Error",
+          primaryAction: {
+            title: "Copy Error",
+            shortcut: { macOS: { modifiers: ["cmd"], key: "c" }, Windows: { modifiers: ["ctrl"], key: "c" } },
+            onAction: (toast: Toast) => {
+              Clipboard.copy(classified.message);
+              toast.hide();
+            },
+          },
+        });
       } finally {
         // Only update loading state if this fetch wasn't aborted
         if (!abortController.signal.aborted) {

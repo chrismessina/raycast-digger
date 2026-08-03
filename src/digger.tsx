@@ -14,13 +14,9 @@ import { extractUrl, validateUrl } from "./utils/urlUtils";
 
 export type { LoadingProgress };
 
-interface Arguments {
-  url?: string;
-}
+const preferences = getPreferenceValues<Preferences.Digger>();
 
-const preferences = getPreferenceValues();
-
-export default function Command(props: { arguments: Arguments }) {
+export default function Command(props: { arguments: Arguments.Digger }) {
   const { url: inputUrl } = props.arguments;
   const [url, setUrl] = useState<string | undefined>(inputUrl);
   const { data, isLoading, error, errorType, fetchErrors, fetchSite, refetch, certificateInfo, progress } =

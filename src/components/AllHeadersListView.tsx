@@ -26,13 +26,9 @@ export function AllHeadersListView({ headers }: HeadersListViewProps) {
                 <Action.CopyToClipboard
                   title="Copy Header Name"
                   content={key}
-                  shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
+                  shortcut={Keyboard.Shortcut.Common.CopyName}
                 />
-                <Action.CopyToClipboard
-                  title="Copy as Name: Value"
-                  content={`${key}: ${value}`}
-                  shortcut={{ modifiers: ["cmd", "opt"], key: "c" }}
-                />
+                <Action.CopyToClipboard title="Copy as Name: Value" content={`${key}: ${value}`} />
               </ActionPanel>
             }
           />
