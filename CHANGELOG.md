@@ -1,5 +1,22 @@
 # Digger Changelog
 
+## [Windows shortcut support and error-copying fixes] - {PR_MERGE_DATE}
+
+### Fixed
+
+- Keyboard shortcuts now work on Windows. Every custom shortcut previously used a ⌘-based binding that does not exist on Windows, leaving those actions unreachable there.
+- In the HTTP Headers list, "Copy Header Name" and "Copy Header Value" were both bound to ⌘ ⇧ C, so one of them could never be triggered. "Copy Header Name" now uses ⌘ ⌥ C.
+- "Open in Wayback Machine" and "Save to Wayback Machine" now open the correct app when running Raycast beta.
+
+### Added
+
+- The "Some data couldn't be loaded" banner now offers **Copy Error Details**, so the individual failure messages can be copied for a bug report.
+- The fetch-failure toast now offers **Copy Error**.
+
+### Changed
+
+- "Save to Wayback Machine" moved from ⌘ ⇧ S to ⌘ ⇧ Y, and "Copy Canonical URL" from ⌘ ⌥ C to ⌘ ⌥ U, so they no longer shadow Raycast's standard shortcuts.
+
 ## [Add Content Signals and Payment Required (x402) detection] - 2026-02-19
 
 ### Added: Content Signals detection
