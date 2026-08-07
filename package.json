@@ -76,7 +76,7 @@
     }
   ],
   "dependencies": {
-    "@chrismessina/raycast-logger": "^1.2.4",
+    "@chrismessina/raycast-logger": "^1.3.0",
     "@raycast/api": "^1.104.24",
     "@raycast/utils": "^2.2.7",
     "cheerio": "^1.2.0",
