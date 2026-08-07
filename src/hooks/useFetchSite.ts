@@ -264,6 +264,15 @@ export function useFetchSite(url?: string) {
       // blanks while its progress bar jumps to complete.
       const isSuperseded = () => abortController.signal.aborted;
 
+      // This fetch aborts its OWN controller in two places to stop its pending
+      // auxiliary work after a failure (the main-fetch rejection below, and the
+      // catch). That flips the same `signal.aborted` a newer fetch would flip, and
+      // the catch/finally read it as "someone else owns the UI now" — so a genuine
+      // failure silently skipped BOTH setError and setIsLoading(false), leaving a
+      // dead site spinning forever with no message. Track which kind of abort it
+      // was; `signal.aborted` alone cannot tell them apart.
+      let abortedByOwnFailure = false;
+
       // Helper to update progress for a specific category
       const updateProgress = (category: keyof LoadingProgress, value: number) => {
         if (isSuperseded()) return;
@@ -415,7 +424,9 @@ export function useFetchSite(url?: string) {
 
         if (htmlResult.status === "rejected") {
           log.error("fetch:failed", { url: normalizedUrl, error: htmlResult.reason });
-          // Cancel all pending async operations
+          // Cancel all pending async operations. Flag it first: this abort is
+          // ours, not a supersede, and the catch must still report the failure.
+          abortedByOwnFailure = true;
           abortController.abort();
           log.log("fetch:aborted-async-operations", { reason: "main fetch failed" });
           throw new Error("Failed to fetch website");
@@ -1093,15 +1104,19 @@ export function useFetchSite(url?: string) {
         await saveToCache(normalizedUrl, result, isSuperseded);
         log.log("fetch:complete", { url: normalizedUrl });
       } catch (err) {
-        // Check if this was an abort - don't show error for cancelled fetches
-        if (abortController.signal.aborted) {
+        // Don't show an error for a fetch a NEWER one cancelled — but do show one
+        // when we aborted ourselves above, which flips the identical flag.
+        if (abortController.signal.aborted && !abortedByOwnFailure) {
           log.log("fetch:aborted", { targetUrl });
           return;
         }
 
         const classified = classifyError(err);
         log.error("fetch:error", { error: classified.message, type: classified.type });
-        // Ensure async operations are cancelled on any error
+        // Ensure async operations are cancelled on any error. Same reasoning as
+        // above: flag it, or the `finally` mistakes this for a supersede and
+        // leaves the spinner running underneath the error we are about to show.
+        abortedByOwnFailure = true;
         abortController.abort();
         setError(classified.message);
         setErrorType(classified.type);
@@ -1118,8 +1133,10 @@ export function useFetchSite(url?: string) {
           },
         });
       } finally {
-        // Only update loading state if this fetch wasn't aborted
-        if (!abortController.signal.aborted) {
+        // Clear the spinner unless a NEWER fetch owns it now. Our own
+        // failure-abort must still clear it — otherwise the error renders under a
+        // spinner that never stops.
+        if (!abortController.signal.aborted || abortedByOwnFailure) {
           setIsLoading(false);
         }
       }
