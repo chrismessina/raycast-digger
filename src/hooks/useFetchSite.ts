@@ -347,23 +347,31 @@ export function useFetchSite(url?: string) {
             return Promise.resolve(fallback);
           }
           return new Promise((resolve) => {
+            const onAbort = () => {
+              stop({ aborted: true });
+              resolve(fallback);
+            };
+            // `{ once: true }` only unregisters the listener if it actually
+            // FIRES. On the normal path — the fetch simply finishes — it never
+            // does, so without the explicit removal below each of these four
+            // wrappers leaves a listener holding `resolve` and the timer closure
+            // alive for as long as the controller does. Bounded, because the next
+            // fetch swaps in a fresh controller, but it means a long-lived view
+            // retains dead per-fetch machinery it can never use.
+            abortController.signal.addEventListener("abort", onAbort, { once: true });
+            const release = () => abortController.signal.removeEventListener("abort", onAbort);
+
             promise
               .then((value) => {
+                release();
                 stop();
                 resolve(value);
               })
               .catch((error) => {
+                release();
                 stop({ failed: error instanceof Error ? error.message : String(error) });
                 resolve(fallback);
               });
-            abortController.signal.addEventListener(
-              "abort",
-              () => {
-                stop({ aborted: true });
-                resolve(fallback);
-              },
-              { once: true },
-            );
           });
         }
 
