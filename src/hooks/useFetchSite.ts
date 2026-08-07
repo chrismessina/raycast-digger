@@ -1088,7 +1088,9 @@ export function useFetchSite(url?: string) {
           return;
         }
         setData(result);
-        await saveToCache(normalizedUrl, result);
+        // The predicate is re-checked inside, after eviction — passing the guard
+        // above only proves we were current when the write STARTED.
+        await saveToCache(normalizedUrl, result, isSuperseded);
         log.log("fetch:complete", { url: normalizedUrl });
       } catch (err) {
         // Check if this was an abort - don't show error for cancelled fetches
