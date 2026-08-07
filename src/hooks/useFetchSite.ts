@@ -29,7 +29,7 @@ import {
 } from "../utils/fontUtils";
 import { fetchHostMetadata } from "../utils/hostMetaUtils";
 import { getLogger } from "../utils/logger";
-import { getRootResourceUrl, normalizeUrl } from "../utils/urlUtils";
+import { getRootResourceUrl, normalizeUrl, redactUrlForLog } from "../utils/urlUtils";
 import { fetchWaybackMachineData } from "../utils/waybackUtils";
 import { useCache } from "./useCache";
 
@@ -321,11 +321,16 @@ export function useFetchSite(url?: string) {
 
         // Helper to wrap async operations with abort signal support.
         //
-        // The timer starts HERE, at kickoff, and stops the moment the underlying
-        // promise settles — deliberately not where `.then()` is attached further
-        // down. These four run concurrently while the main thread parses HTML, so
-        // timing them at the handler would measure "when we got around to it" and
-        // report parse work as network latency.
+        // The timer starts HERE, at kickoff, and stops in the reaction attached
+        // to the underlying promise — deliberately not in the `.then()` handlers
+        // ~500 lines below, which are wired up only after the main HTML parse and
+        // would bill that parse to whichever fetch finished first.
+        //
+        // What this measures is end-to-end latency from kickoff to when the
+        // reaction could run, NOT pure network time: the reaction is a microtask,
+        // so a long synchronous parse holding the main thread inflates the
+        // number. Read these as "which of the four was the straggler", which is
+        // the question they exist to answer — not as a network benchmark.
         function withAbort<T>(label: string, promise: Promise<T>, fallback: T): Promise<T> {
           const done = log.time(label);
           // `log.time()` hands back an unguarded closure, and abort can race the
@@ -798,7 +803,13 @@ export function useFetchSite(url?: string) {
             // failed to use it, so icons/metadata are silently missing from the
             // result. That degradation is invisible in the UI, which makes it
             // exactly the thing a bug report needs to carry.
-            log.warn("parse:manifest-error", { url: manifestUrl, error: e instanceof Error ? e.message : "unknown" });
+            //
+            // Query string stripped because warn is not verbose-gated — see
+            // redactUrlForLog.
+            log.warn("parse:manifest-error", {
+              url: redactUrlForLog(manifestUrl),
+              error: e instanceof Error ? e.message : "unknown",
+            });
           }
         }
 
