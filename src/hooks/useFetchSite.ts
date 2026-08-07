@@ -253,8 +253,20 @@ export function useFetchSite(url?: string) {
       setFetchErrors([]);
       setProgress(initialProgress);
 
+      // True once a NEWER fetch has taken over. Every state write below is
+      // owned by this fetch, so once it is superseded none of them may land.
+      //
+      // Aborting does not cancel the underlying DNS/TLS/Wayback/host-meta work —
+      // it only resolves the withAbort() wrapper with its fallback. That
+      // resolution still runs the `.then()` handlers ~700 lines down, which
+      // otherwise write `undefined` and progress=1 into the state the NEW fetch
+      // is building. Dig site A, then quickly dig site B, and B's DNS panel
+      // blanks while its progress bar jumps to complete.
+      const isSuperseded = () => abortController.signal.aborted;
+
       // Helper to update progress for a specific category
       const updateProgress = (category: keyof LoadingProgress, value: number) => {
+        if (isSuperseded()) return;
         setProgress((prev) => ({ ...prev, [category]: value }));
       };
 
@@ -272,6 +284,7 @@ export function useFetchSite(url?: string) {
 
       // Helper to update data progressively
       const updateData = (partial: Partial<DiggerResult>) => {
+        if (isSuperseded()) return;
         setData((prev) => (prev ? { ...prev, ...partial } : (partial as DiggerResult)));
       };
 
@@ -280,6 +293,14 @@ export function useFetchSite(url?: string) {
         log.log("fetch:normalized", { normalizedUrl });
 
         const cached = await getFromCache(normalizedUrl);
+        // A newer fetch can start during the cache read, and a cache hit is the
+        // FASTEST path here — dig a cached site, immediately dig another, and
+        // without this the first one's cached payload lands on top of the second,
+        // with every progress bar forced to complete and the spinner stopped.
+        if (isSuperseded()) {
+          log.log("fetch:superseded", { url: normalizedUrl, at: "cache-read" });
+          return;
+        }
         if (cached) {
           log.log("cache:hit", { url: normalizedUrl });
           setData(cached);
@@ -949,13 +970,19 @@ export function useFetchSite(url?: string) {
 
         // Now await the async fetches that were started earlier
         // Handle each one individually so they update as they complete
+        // Each handler bails if a newer fetch has taken over. updateProgress and
+        // updateData are already guarded, but returning here also suppresses the
+        // "*-complete" logs — which would otherwise claim a cancelled fetch
+        // finished — and covers setCertificateInfo/setData, which write directly.
         dnsPromise.then((dnsData) => {
+          if (isSuperseded()) return;
           log.log("fetch:dns-complete", { hasDns: !!dnsData });
           updateProgress("dns", 1);
           updateData({ dns: dnsData });
         });
 
         certPromise.then((certInfo) => {
+          if (isSuperseded()) return;
           log.log("fetch:cert-complete", { hasCert: !!certInfo });
           if (certInfo) {
             setCertificateInfo(certInfo);
@@ -963,6 +990,7 @@ export function useFetchSite(url?: string) {
         });
 
         waybackPromise.then((waybackData) => {
+          if (isSuperseded()) return;
           log.log("fetch:wayback-complete", { hasWayback: !!waybackData, rateLimited: waybackData?.rateLimited });
           updateProgress("history", 1);
           // Only update if we got good data, or if there's no existing data
@@ -983,6 +1011,7 @@ export function useFetchSite(url?: string) {
         });
 
         hostMetaPromise.then((hostMetadata) => {
+          if (isSuperseded()) return;
           log.log("fetch:hostmeta-complete", { hasHostMeta: !!hostMetadata?.available });
           updateData({ hostMetadata });
         });
@@ -1046,6 +1075,18 @@ export function useFetchSite(url?: string) {
         };
 
         // Final update and cache
+        //
+        // Guarded for TWO distinct reasons, and the cache one is the subtle half.
+        // `setData` would paint this fetch's result over the newer one. But
+        // `saveToCache` is worse than useless on a superseded fetch: abort makes
+        // every withAbort() wrapper resolve with its FALLBACK, so `result` here
+        // carries undefined dns/cert/wayback/hostMetadata. Persisting that writes
+        // a hole-ridden entry under this URL's key, and the next dig of this very
+        // URL would score a cache hit and render the gaps as fact.
+        if (isSuperseded()) {
+          log.log("fetch:superseded", { url: normalizedUrl, at: "final-write" });
+          return;
+        }
         setData(result);
         await saveToCache(normalizedUrl, result);
         log.log("fetch:complete", { url: normalizedUrl });
