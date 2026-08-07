@@ -319,19 +319,53 @@ export function useFetchSite(url?: string) {
         updateProgress("dns", 0.3);
         updateProgress("history", 0.3);
 
-        // Helper to wrap async operations with abort signal support
-        function withAbort<T>(promise: Promise<T>, fallback: T): Promise<T> {
-          if (abortController.signal.aborted) return Promise.resolve(fallback);
+        // Helper to wrap async operations with abort signal support.
+        //
+        // The timer starts HERE, at kickoff, and stops the moment the underlying
+        // promise settles — deliberately not where `.then()` is attached further
+        // down. These four run concurrently while the main thread parses HTML, so
+        // timing them at the handler would measure "when we got around to it" and
+        // report parse work as network latency.
+        function withAbort<T>(label: string, promise: Promise<T>, fallback: T): Promise<T> {
+          const done = log.time(label);
+          // `log.time()` hands back an unguarded closure, and abort can race the
+          // promise settling — without this gate a slow fetch logs two durations.
+          let stopped = false;
+          const stop = (meta?: Record<string, unknown>) => {
+            if (stopped) return;
+            stopped = true;
+            done(meta);
+          };
+
+          if (abortController.signal.aborted) {
+            stop({ skipped: "aborted before start" });
+            return Promise.resolve(fallback);
+          }
           return new Promise((resolve) => {
-            promise.then(resolve).catch(() => resolve(fallback));
-            abortController.signal.addEventListener("abort", () => resolve(fallback), { once: true });
+            promise
+              .then((value) => {
+                stop();
+                resolve(value);
+              })
+              .catch((error) => {
+                stop({ failed: error instanceof Error ? error.message : String(error) });
+                resolve(fallback);
+              });
+            abortController.signal.addEventListener(
+              "abort",
+              () => {
+                stop({ aborted: true });
+                resolve(fallback);
+              },
+              { once: true },
+            );
           });
         }
 
-        const dnsPromise = withAbort(performDNSLookup(hostname), undefined);
-        const certPromise = withAbort(getTLSCertificateInfo(hostname), null);
-        const waybackPromise = withAbort(fetchWaybackMachineData(normalizedUrl), undefined);
-        const hostMetaPromise = withAbort(fetchHostMetadata(normalizedUrl), undefined);
+        const dnsPromise = withAbort("dns", performDNSLookup(hostname), undefined);
+        const certPromise = withAbort("cert", getTLSCertificateInfo(hostname), null);
+        const waybackPromise = withAbort("wayback", fetchWaybackMachineData(normalizedUrl), undefined);
+        const hostMetaPromise = withAbort("hostmeta", fetchHostMetadata(normalizedUrl), undefined);
 
         // Use streaming fetch for main HTML to avoid memory issues on large pages
         // Use getRootResourceUrl to ensure robots.txt, llms.txt and sitemap.xml are fetched from the domain root
@@ -760,7 +794,11 @@ export function useFetchSite(url?: string) {
               }
             }
           } catch (e) {
-            log.log("parse:manifest-error", { url: manifestUrl, error: e instanceof Error ? e.message : "unknown" });
+            // `warn`, not `log`: the manifest was advertised by the page and we
+            // failed to use it, so icons/metadata are silently missing from the
+            // result. That degradation is invisible in the UI, which makes it
+            // exactly the thing a bug report needs to carry.
+            log.warn("parse:manifest-error", { url: manifestUrl, error: e instanceof Error ? e.message : "unknown" });
           }
         }
 

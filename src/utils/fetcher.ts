@@ -168,9 +168,18 @@ export async function fetchHeadOnlyWithFallback(
   try {
     return await fetchHeadOnly(url, timeout, signal);
   } catch (httpsError) {
-    // Try HTTP as fallback
+    // Try HTTP as fallback.
+    //
+    // `warn`, not `log`: this is a protocol DOWNGRADE. Everything below is read
+    // over plaintext, and for a tool that reports on a site's security posture
+    // that is worth surfacing even when the user has not opted into verbose
+    // diagnostics — `log` would hide it from the bug report that needs it most.
     const httpUrl = url.replace(/^https:\/\//i, "http://");
-    log.log("fetchHeadOnlyWithFallback:https-failed-trying-http", { url, httpUrl });
+    log.warn("fetchHeadOnlyWithFallback:https-failed-trying-http", {
+      url,
+      httpUrl,
+      reason: httpsError instanceof Error ? httpsError.message : String(httpsError),
+    });
 
     try {
       return await fetchHeadOnly(httpUrl, timeout, signal);
