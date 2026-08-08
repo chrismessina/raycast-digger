@@ -36,12 +36,50 @@ import { useCache } from "./useCache";
 const log = getLogger("fetch");
 
 /** Classify an error for better user messaging */
+/**
+ * Flattens an error and its `cause` chain, outermost first.
+ *
+ * Node's `fetch` reports every transport failure as the same opaque
+ * `TypeError: fetch failed` and puts the real reason one level down in `cause`:
+ * `getaddrinfo ENOTFOUND example.com`. Reading only `.message`, as this file used
+ * to, means a dead domain matches none of the classifier's keywords and lands in
+ * the "unknown" bucket — which is why a failed dig showed a bare "Fetch Error"
+ * with the two generic suggestions instead of "Connection Failed" and the four
+ * network ones.
+ *
+ * `code` is appended where present because that, not the prose, is what carries
+ * ENOTFOUND / ECONNREFUSED.
+ */
+function errorChain(error: unknown): string[] {
+  const parts: string[] = [];
+  let current: unknown = error;
+  // Bounded: a malformed `cause` cycle must not spin here.
+  for (let depth = 0; current != null && depth < 5; depth++) {
+    if (current instanceof Error) {
+      const code = (current as Error & { code?: string }).code;
+      parts.push(code ? `${current.message} (${code})` : current.message);
+      current = current.cause;
+    } else {
+      parts.push(String(current));
+      break;
+    }
+  }
+  return parts.filter(Boolean);
+}
+
+/** The most specific detail in an error chain — the deepest cause. */
+function errorDetail(error: unknown): string {
+  return errorChain(error).at(-1) ?? String(error);
+}
+
 function classifyError(
   error: unknown,
   statusCode?: number,
 ): { type: ErrorType; message: string; recoverable: boolean } {
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  const lowerMessage = errorMessage.toLowerCase();
+  const chain = errorChain(error);
+  const errorMessage = chain.at(-1) ?? String(error);
+  // Match across the WHOLE chain, not just the outermost message.
+  const lowerMessage = chain.join(" ").toLowerCase();
 
   // Network errors
   if (
@@ -221,7 +259,11 @@ export function useFetchSite(url?: string) {
     const classified = classifyError(error);
     const fetchError: FetchError = {
       category,
-      message: error instanceof Error ? error.message : String(error),
+      // The deepest cause, not the outermost message: this line is the
+      // per-component technical detail in the error card, so "getaddrinfo
+      // ENOTFOUND example.com (ENOTFOUND)" earns its place where a second copy
+      // of "fetch failed" would not.
+      message: errorDetail(error),
       description: getCategoryDescription(category),
       recoverable: recoverable && classified.recoverable,
       timestamp: Date.now(),
@@ -429,7 +471,13 @@ export function useFetchSite(url?: string) {
           abortedByOwnFailure = true;
           abortController.abort();
           log.log("fetch:aborted-async-operations", { reason: "main fetch failed" });
-          throw new Error("Failed to fetch website");
+          // Rethrow the ORIGINAL rejection rather than a synthetic message.
+          // classifyError works by keyword-matching the error chain, so replacing
+          // it with "Failed to fetch website" — a string containing none of those
+          // keywords — guaranteed the "unknown" bucket and the generic card.
+          throw htmlResult.reason instanceof Error
+            ? htmlResult.reason
+            : new Error(`Failed to fetch website: ${String(htmlResult.reason)}`);
         }
 
         const { headHtml: streamedHtml, status, headers, timing, finalUrl, truncated } = htmlResult.value;
