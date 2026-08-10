@@ -1,5 +1,6 @@
 import { Action, ActionPanel, Color, Icon, Keyboard, List } from "@raycast/api";
 import { ErrorType, FetchError } from "../types";
+import { buildErrorReport, getErrorTitle } from "../utils/errorReport";
 
 interface ErrorDisplayProps {
   error: string;
@@ -32,64 +33,6 @@ function getErrorIcon(errorType: ErrorType | null): { icon: Icon; color: Color }
   }
 }
 
-/** Get helpful suggestions based on error type */
-function getErrorSuggestions(errorType: ErrorType | null): string[] {
-  switch (errorType) {
-    case "network":
-      return [
-        "Check your internet connection",
-        "Verify the URL is spelled correctly",
-        "The website may be temporarily down",
-        "Try again in a few moments",
-      ];
-    case "blocked":
-      return [
-        "The site may have bot protection enabled",
-        "You may be rate limited - wait a moment",
-        "Try accessing the site in a browser first",
-        "Some sites block automated requests",
-      ];
-    case "notFound":
-      return [
-        "Double-check the URL for typos",
-        "The page may have been moved or deleted",
-        "Try the site's homepage instead",
-      ];
-    case "serverError":
-      return [
-        "The website is experiencing issues",
-        "Try again in a few minutes",
-        "Check if the site is down for everyone",
-      ];
-    case "invalid":
-      return [
-        "Make sure the URL starts with http:// or https://",
-        "Check for special characters in the URL",
-        "Try copying the URL directly from your browser",
-      ];
-    default:
-      return ["Try again", "Check the URL and try once more"];
-  }
-}
-
-/** Get error title based on type */
-function getErrorTitle(errorType: ErrorType | null): string {
-  switch (errorType) {
-    case "network":
-      return "Connection Failed";
-    case "blocked":
-      return "Access Blocked";
-    case "notFound":
-      return "Page Not Found";
-    case "serverError":
-      return "Server Error";
-    case "invalid":
-      return "Invalid URL";
-    default:
-      return "Fetch Error";
-  }
-}
-
 /**
  * Shown in place of the results list when a dig fails outright.
  *
@@ -104,33 +47,19 @@ function getErrorTitle(errorType: ErrorType | null): string {
 export function ErrorDisplay({ error, errorType, fetchErrors, onRetry, url }: ErrorDisplayProps) {
   const { icon, color } = getErrorIcon(errorType);
   const title = getErrorTitle(errorType);
-  const suggestions = getErrorSuggestions(errorType);
   const isRecoverable = fetchErrors.length === 0 || fetchErrors.some((e) => e.recoverable);
 
-  // A total failure yields exactly ONE cause — `addFetchError` is only ever
-  // called for the "main" category — so the plural "Failed components:" heading
-  // was scaffolding around a single line. Render one cause as one line and keep
-  // the list form for the day the other categories actually report.
-  const causes =
-    fetchErrors.length === 1
-      ? `Cause: ${fetchErrors[0].message}`
-      : fetchErrors.length > 1
-        ? `Failed components:\n${fetchErrors.map((e) => `- ${e.description}: ${e.message}`).join("\n")}`
-        : "";
-
-  // Copied verbatim — carries everything the on-screen description has to leave
-  // out. EmptyView collapses blank lines and truncates after ~3, so the
-  // suggestions and the underlying cause cannot render there; a longer
-  // description just produces a dangling "…" that reads like a rendering bug.
-  const detail = [
-    title,
-    error,
-    url ? `\nURL: ${url}` : "",
-    causes ? `${url ? "" : "\n"}${causes}` : "",
-    `\nSuggestions:\n${suggestions.map((s) => `- ${s}`).join("\n")}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  // Built by the shared reporter, so this and the toast's Copy Error yield
+  // byte-identical text. EmptyView collapses blank lines and truncates after
+  // ~3, so the suggestions and the underlying cause cannot render on screen;
+  // a longer description just produces a dangling "…" that reads like a
+  // rendering bug. They live in the copied report instead.
+  const detail = buildErrorReport({
+    errorType,
+    message: error,
+    url,
+    causes: fetchErrors.map((e) => ({ description: e.description, message: e.message })),
+  });
 
   return (
     <List.EmptyView

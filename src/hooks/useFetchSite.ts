@@ -19,6 +19,7 @@ import {
 import { detectBotProtection } from "../utils/botDetection";
 import { LIMITS } from "../utils/config";
 import { CertificateInfo, getTLSCertificateInfo, performDNSLookup } from "../utils/dnsUtils";
+import { buildErrorReport, getErrorTitle } from "../utils/errorReport";
 import { fetchHeadOnlyWithFallback, fetchTextResource, fetchWithTimeout } from "../utils/fetcher";
 import {
   deduplicateFonts,
@@ -1169,13 +1170,25 @@ export function useFetchSite(url?: string) {
         setError(classified.message);
         setErrorType(classified.type);
         addFetchError("main", err, classified.recoverable);
+        // The toast is where a Raycast user reaches for the error — not the
+        // action panel behind ⌘K — so its Copy Error yields the SAME full report
+        // the empty state's does, not just the summary line. Both call
+        // buildErrorReport, so they cannot drift apart.
+        const report = buildErrorReport({
+          errorType: classified.type,
+          message: classified.message,
+          url: targetUrl,
+          causes: [{ description: getCategoryDescription("main"), message: errorDetail(err) }],
+        });
         await showFailureToast(classified.message, {
-          title: "Fetch Error",
+          // Was hardcoded "Fetch Error" while the card said "Connection Failed" —
+          // the same failure named two different things on one screen.
+          title: getErrorTitle(classified.type),
           primaryAction: {
             title: "Copy Error",
             shortcut: { macOS: { modifiers: ["cmd"], key: "c" }, Windows: { modifiers: ["ctrl"], key: "c" } },
             onAction: (toast: Toast) => {
-              Clipboard.copy(classified.message);
+              Clipboard.copy(report);
               toast.hide();
             },
           },
