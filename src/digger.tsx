@@ -14,13 +14,9 @@ import { extractUrl, validateUrl } from "./utils/urlUtils";
 
 export type { LoadingProgress };
 
-interface Arguments {
-  url?: string;
-}
+const preferences = getPreferenceValues<Preferences.Digger>();
 
-const preferences = getPreferenceValues();
-
-export default function Command(props: { arguments: Arguments }) {
+export default function Command(props: { arguments: Arguments.Digger }) {
   const { url: inputUrl } = props.arguments;
   const [url, setUrl] = useState<string | undefined>(inputUrl);
   const { data, isLoading, error, errorType, fetchErrors, fetchSite, refetch, certificateInfo, progress } =
@@ -88,17 +84,15 @@ export default function Command(props: { arguments: Arguments }) {
   // Check if we have partial data (some sections loaded successfully)
   const hasPartialData = !!(data && (data.overview || data.metadata || data.networking));
 
-  // Show full error state only if we have no partial data
+  // Show full error state only if we have no partial data.
+  //
+  // Deliberately a BARE List: no `isShowingDetail`. The two-pane layout exists to
+  // put a detail beside a selection, and an empty state has neither — keeping it
+  // reserved an empty half-window next to a centred message.
   if (error && !hasPartialData) {
     return (
-      <List isShowingDetail>
-        <ErrorDisplay
-          error={error}
-          errorType={errorType}
-          fetchErrors={fetchErrors}
-          onRetry={refetch}
-          hasPartialData={false}
-        />
+      <List>
+        <ErrorDisplay error={error} errorType={errorType} fetchErrors={fetchErrors} onRetry={refetch} url={url} />
       </List>
     );
   }
