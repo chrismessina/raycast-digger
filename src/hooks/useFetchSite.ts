@@ -295,6 +295,11 @@ export function useFetchSite(url?: string) {
       setErrorType(null);
       setFetchErrors([]);
       setProgress(initialProgress);
+      // Reset with the rest. The cert handler below only writes when the lookup
+      // SUCCEEDS (`if (certInfo)`), so without clearing here a dig whose TLS
+      // lookup returns null — socket error or timeout — keeps rendering the
+      // PREVIOUS site's certificate as though it were this one's.
+      setCertificateInfo(null);
 
       // True once a NEWER fetch has taken over. Every state write below is
       // owned by this fetch, so once it is superseded none of them may land.
@@ -307,14 +312,25 @@ export function useFetchSite(url?: string) {
       // blanks while its progress bar jumps to complete.
       const isSuperseded = () => abortController.signal.aborted;
 
-      // This fetch aborts its OWN controller in two places to stop its pending
-      // auxiliary work after a failure (the main-fetch rejection below, and the
-      // catch). That flips the same `signal.aborted` a newer fetch would flip, and
-      // the catch/finally read it as "someone else owns the UI now" — so a genuine
-      // failure silently skipped BOTH setError and setIsLoading(false), leaving a
-      // dead site spinning forever with no message. Track which kind of abort it
-      // was; `signal.aborted` alone cannot tell them apart.
-      let abortedByOwnFailure = false;
+      // Whether this fetch still OWNS the view — a strictly different question
+      // from `isSuperseded()`, and the one the error card and the spinner turn on.
+      //
+      // This fetch aborts its own controller after a failure to stop its pending
+      // auxiliary work, which flips the very same `signal.aborted` a newer fetch
+      // flips. Reading the signal alone therefore made a genuine failure look like
+      // a cancellation, and it silently skipped both setError and
+      // setIsLoading(false) — a dead site spun forever with no message.
+      //
+      // The obvious repair, a "did I abort myself?" flag, is wrong in the other
+      // direction: it records our own history and knows nothing about who owns the
+      // view NOW. Between the failure and the `finally` there is an
+      // `await showFailureToast`, and a Retry started during that await would set
+      // its own spinner — which our stale flag would then switch off.
+      //
+      // The ref is the single source of truth for ownership: it points at whichever
+      // fetch is current, so identity against it answers the question directly and
+      // cannot go stale.
+      const ownsView = () => abortControllerRef.current === abortController;
 
       // Helper to update progress for a specific category
       const updateProgress = (category: keyof LoadingProgress, value: number) => {
@@ -466,10 +482,9 @@ export function useFetchSite(url?: string) {
         ]);
 
         if (htmlResult.status === "rejected") {
-          log.error("fetch:failed", { url: normalizedUrl, error: htmlResult.reason });
-          // Cancel all pending async operations. Flag it first: this abort is
-          // ours, not a supersede, and the catch must still report the failure.
-          abortedByOwnFailure = true;
+          log.error("fetch:failed", { url: redactUrlForLog(normalizedUrl), error: htmlResult.reason });
+          // Cancel all pending async operations. The catch distinguishes this
+          // self-abort from a supersede by ownership, not by a flag.
           abortController.abort();
           log.log("fetch:aborted-async-operations", { reason: "main fetch failed" });
           // Rethrow the ORIGINAL rejection rather than a synthetic message.
@@ -1153,19 +1168,18 @@ export function useFetchSite(url?: string) {
         await saveToCache(normalizedUrl, result, isSuperseded);
         log.log("fetch:complete", { url: normalizedUrl });
       } catch (err) {
-        // Don't show an error for a fetch a NEWER one cancelled — but do show one
-        // when we aborted ourselves above, which flips the identical flag.
-        if (abortController.signal.aborted && !abortedByOwnFailure) {
+        // Say nothing if a newer dig owns the view — whether it cancelled us or we
+        // failed on our own. Ownership, not the abort signal: our own
+        // failure-abort flips that signal too, and reading it here is what used to
+        // swallow genuine errors.
+        if (!ownsView()) {
           log.log("fetch:aborted", { targetUrl });
           return;
         }
 
         const classified = classifyError(err);
         log.error("fetch:error", { error: classified.message, type: classified.type });
-        // Ensure async operations are cancelled on any error. Same reasoning as
-        // above: flag it, or the `finally` mistakes this for a supersede and
-        // leaves the spinner running underneath the error we are about to show.
-        abortedByOwnFailure = true;
+        // Ensure async operations are cancelled on any error.
         abortController.abort();
         setError(classified.message);
         setErrorType(classified.type);
@@ -1180,7 +1194,13 @@ export function useFetchSite(url?: string) {
           url: targetUrl,
           causes: [{ description: getCategoryDescription("main"), message: errorDetail(err) }],
         });
-        await showFailureToast(classified.message, {
+        // First argument is the REPORT, not the summary. showFailureToast injects
+        // its own secondary action whenever a primary is supplied, and that
+        // secondary only ever sees this first argument — so passing the summary
+        // here gave the built-in action a single line while ours had the full
+        // detail. `message` below keeps the on-screen text short regardless.
+        await showFailureToast(report, {
+          message: classified.message,
           // Was hardcoded "Fetch Error" while the card said "Connection Failed" —
           // the same failure named two different things on one screen.
           title: getErrorTitle(classified.type),
@@ -1194,10 +1214,11 @@ export function useFetchSite(url?: string) {
           },
         });
       } finally {
-        // Clear the spinner unless a NEWER fetch owns it now. Our own
-        // failure-abort must still clear it — otherwise the error renders under a
-        // spinner that never stops.
-        if (!abortController.signal.aborted || abortedByOwnFailure) {
+        // Clear the spinner only while we still own it. A Retry started during
+        // the `await showFailureToast` above sets its own spinner, and this
+        // `finally` then runs — so "did I abort myself?" is the wrong question
+        // here; "am I still the current fetch?" is the right one.
+        if (ownsView()) {
           setIsLoading(false);
         }
       }
