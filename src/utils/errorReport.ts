@@ -29,8 +29,8 @@ export function getErrorTitle(errorType: ErrorType | null): string {
   }
 }
 
-/** Actionable suggestions for an error type. */
-export function getErrorSuggestions(errorType: ErrorType | null): string[] {
+/** Actionable suggestions for an error type. Consumed only by buildErrorReport. */
+function getErrorSuggestions(errorType: ErrorType | null): string[] {
   switch (errorType) {
     case "network":
       return [
@@ -98,13 +98,11 @@ export function buildErrorReport({ errorType, message, url, causes = [] }: Error
         ? `Failed components:\n${causes.map((c) => `- ${c.description}: ${c.message}`).join("\n")}`
         : "";
 
-  return [
-    title,
-    message,
-    url ? `\nURL: ${url}` : "",
-    causeBlock ? `${url ? "" : "\n"}${causeBlock}` : "",
-    `\nSuggestions:\n${suggestions.map((s) => `- ${s}`).join("\n")}`,
-  ]
+  // URL and cause form one block, so the blank line before it is decided once
+  // here rather than by each part guessing whether the other exists.
+  const context = [url ? `URL: ${url}` : "", causeBlock].filter(Boolean).join("\n");
+
+  return [title, message, context && `\n${context}`, `\nSuggestions:\n${suggestions.map((s) => `- ${s}`).join("\n")}`]
     .filter(Boolean)
     .join("\n");
 }

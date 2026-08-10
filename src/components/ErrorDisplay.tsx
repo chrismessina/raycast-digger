@@ -54,12 +54,9 @@ export function ErrorDisplay({ error, errorType, fetchErrors, onRetry, url }: Er
   // ~3, so the suggestions and the underlying cause cannot render on screen;
   // a longer description just produces a dangling "…" that reads like a
   // rendering bug. They live in the copied report instead.
-  const detail = buildErrorReport({
-    errorType,
-    message: error,
-    url,
-    causes: fetchErrors.map((e) => ({ description: e.description, message: e.message })),
-  });
+  // FetchError already carries `description` and `message`, so it satisfies the
+  // cause shape structurally — no mapping needed.
+  const detail = buildErrorReport({ errorType, message: error, url, causes: fetchErrors });
 
   return (
     <List.EmptyView
