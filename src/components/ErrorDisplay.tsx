@@ -6,13 +6,19 @@ interface ErrorDisplayProps {
   errorType: ErrorType | null;
   fetchErrors: FetchError[];
   onRetry: () => void;
+  /** The URL that failed. Included in the copied detail — an error report that
+   *  omits what was being dug is most of the way to useless. */
+  url?: string;
 }
 
 /** Get icon and color based on error type */
 function getErrorIcon(errorType: ErrorType | null): { icon: Icon; color: Color } {
   switch (errorType) {
     case "network":
-      return { icon: Icon.Wifi, color: Color.Orange };
+      // WifiDisabled (the slashed glyph), not Wifi. At empty-state size a
+      // full-strength wifi symbol reads as "connected" — the opposite of what
+      // just happened. Same call karakeep's ConnectionErrorView makes.
+      return { icon: Icon.WifiDisabled, color: Color.Orange };
     case "blocked":
       return { icon: Icon.Shield, color: Color.Red };
     case "notFound":
@@ -95,21 +101,32 @@ function getErrorTitle(errorType: ErrorType | null): string {
  * Modelled on karakeep's ConnectionErrorView. The partial-failure case is
  * different and stays a row — see PartialErrorBanner below.
  */
-export function ErrorDisplay({ error, errorType, fetchErrors, onRetry }: ErrorDisplayProps) {
+export function ErrorDisplay({ error, errorType, fetchErrors, onRetry, url }: ErrorDisplayProps) {
   const { icon, color } = getErrorIcon(errorType);
   const title = getErrorTitle(errorType);
   const suggestions = getErrorSuggestions(errorType);
   const isRecoverable = fetchErrors.length === 0 || fetchErrors.some((e) => e.recoverable);
 
+  // A total failure yields exactly ONE cause — `addFetchError` is only ever
+  // called for the "main" category — so the plural "Failed components:" heading
+  // was scaffolding around a single line. Render one cause as one line and keep
+  // the list form for the day the other categories actually report.
+  const causes =
+    fetchErrors.length === 1
+      ? `Cause: ${fetchErrors[0].message}`
+      : fetchErrors.length > 1
+        ? `Failed components:\n${fetchErrors.map((e) => `- ${e.description}: ${e.message}`).join("\n")}`
+        : "";
+
   // Copied verbatim — carries everything the on-screen description has to leave
   // out. EmptyView collapses blank lines and truncates after ~3, so the
-  // suggestions and the per-component causes cannot render there; a longer
+  // suggestions and the underlying cause cannot render there; a longer
   // description just produces a dangling "…" that reads like a rendering bug.
   const detail = [
-    `${title}: ${error}`,
-    fetchErrors.length > 0
-      ? `\nFailed components:\n${fetchErrors.map((e) => `- ${e.description}: ${e.message}`).join("\n")}`
-      : "",
+    title,
+    error,
+    url ? `\nURL: ${url}` : "",
+    causes ? `${url ? "" : "\n"}${causes}` : "",
     `\nSuggestions:\n${suggestions.map((s) => `- ${s}`).join("\n")}`,
   ]
     .filter(Boolean)

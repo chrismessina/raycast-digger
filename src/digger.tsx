@@ -92,7 +92,7 @@ export default function Command(props: { arguments: Arguments.Digger }) {
   if (error && !hasPartialData) {
     return (
       <List>
-        <ErrorDisplay error={error} errorType={errorType} fetchErrors={fetchErrors} onRetry={refetch} />
+        <ErrorDisplay error={error} errorType={errorType} fetchErrors={fetchErrors} onRetry={refetch} url={url} />
       </List>
     );
   }
