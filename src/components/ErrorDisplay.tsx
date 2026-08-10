@@ -6,7 +6,6 @@ interface ErrorDisplayProps {
   errorType: ErrorType | null;
   fetchErrors: FetchError[];
   onRetry: () => void;
-  hasPartialData: boolean;
 }
 
 /** Get icon and color based on error type */
@@ -85,40 +84,42 @@ function getErrorTitle(errorType: ErrorType | null): string {
   }
 }
 
-export function ErrorDisplay({ error, errorType, fetchErrors, onRetry, hasPartialData }: ErrorDisplayProps) {
+/**
+ * Shown in place of the results list when a dig fails outright.
+ *
+ * `List.EmptyView`, not a `List.Item`: a failure is not a RESULT. Rendering it
+ * as a row put a selectable, truncated "Connection Fa… | Unable to con…" entry
+ * in the sidebar, duplicating the detail pane beside it and implying there was a
+ * list of things to pick from. The empty state is the honest shape.
+ *
+ * Modelled on karakeep's ConnectionErrorView. The partial-failure case is
+ * different and stays a row — see PartialErrorBanner below.
+ */
+export function ErrorDisplay({ error, errorType, fetchErrors, onRetry }: ErrorDisplayProps) {
   const { icon, color } = getErrorIcon(errorType);
   const title = getErrorTitle(errorType);
   const suggestions = getErrorSuggestions(errorType);
   const isRecoverable = fetchErrors.length === 0 || fetchErrors.some((e) => e.recoverable);
 
-  const detailMarkdown = `
-# ${title}
-
-${error}
-
-## Suggestions
-
-${suggestions.map((s) => `- ${s}`).join("\n")}
-
-${
-  fetchErrors.length > 0
-    ? `
-## Failed Components
-
-${fetchErrors.map((e) => `- **${e.description}**: ${e.message}`).join("\n")}
-`
-    : ""
-}
-
-${hasPartialData ? "\n---\n*Some data was retrieved successfully. Scroll down to see partial results.*" : ""}
-`;
+  // Copied verbatim — carries everything the on-screen description has to leave
+  // out. EmptyView collapses blank lines and truncates after ~3, so the
+  // suggestions and the per-component causes cannot render there; a longer
+  // description just produces a dangling "…" that reads like a rendering bug.
+  const detail = [
+    `${title}: ${error}`,
+    fetchErrors.length > 0
+      ? `\nFailed components:\n${fetchErrors.map((e) => `- ${e.description}: ${e.message}`).join("\n")}`
+      : "",
+    `\nSuggestions:\n${suggestions.map((s) => `- ${s}`).join("\n")}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   return (
-    <List.Item
-      title={title}
-      subtitle={error}
+    <List.EmptyView
       icon={{ source: icon, tintColor: color }}
-      detail={<List.Item.Detail markdown={detailMarkdown} />}
+      title={title}
+      description={error}
       actions={
         <ActionPanel>
           {isRecoverable && (
@@ -130,9 +131,10 @@ ${hasPartialData ? "\n---\n*Some data was retrieved successfully. Scroll down to
             />
           )}
           <Action.CopyToClipboard
-            title="Copy Error Message"
-            content={error}
-            shortcut={{ macOS: { modifiers: ["cmd"], key: "c" }, Windows: { modifiers: ["ctrl"], key: "c" } }}
+            title="Copy Error Details"
+            content={detail}
+            icon={Icon.Clipboard}
+            shortcut={Keyboard.Shortcut.Common.Copy}
           />
         </ActionPanel>
       }
