@@ -1,5 +1,11 @@
 # Digger Changelog
 
+## [Report failed DNS, certificate, Wayback and host-metadata lookups] - {PR_MERGE_DATE}
+
+### Fixed
+
+- A failed DNS, SSL certificate, Wayback Machine or host-metadata lookup rendered an empty section with nothing saying why. Those failures are now listed in the "Some data couldn't be loaded" banner, with the underlying cause.
+
 ## [Failed digs no longer hang, and shortcuts work on Windows] - 2026-08-11
 
 ### Fixed

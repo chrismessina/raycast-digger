@@ -420,8 +420,13 @@ export function useFetchSite(url?: string) {
         // so a long synchronous parse holding the main thread inflates the
         // number. Read these as "which of the four was the straggler", which is
         // the question they exist to answer — not as a network benchmark.
-        function withAbort<T>(label: string, promise: Promise<T>, fallback: T): Promise<T> {
-          const done = log.time(label);
+        //
+        // The label is the FetchCategory, so a failure here can be reported
+        // without a lookup table. This is the ONE place all four auxiliary
+        // fetches route through, which is why the reporting belongs here rather
+        // than at each call site.
+        function withAbort<T>(category: FetchCategory, promise: Promise<T>, fallback: T): Promise<T> {
+          const done = log.time(category);
           // `log.time()` hands back an unguarded closure, and abort can race the
           // promise settling — without this gate a slow fetch logs two durations.
           let stopped = false;
@@ -459,15 +464,20 @@ export function useFetchSite(url?: string) {
               .catch((error) => {
                 release();
                 stop({ failed: error instanceof Error ? error.message : String(error) });
+                // Surface it. These were swallowed into a fallback, so a site
+                // whose DNS or TLS lookup failed rendered an empty section with
+                // nothing saying why. Guarded because a superseded fetch's late
+                // rejection must not land in the newer dig's error list.
+                if (!isSuperseded()) addFetchError(category, error);
                 resolve(fallback);
               });
           });
         }
 
         const dnsPromise = withAbort("dns", performDNSLookup(hostname), undefined);
-        const certPromise = withAbort("cert", getTLSCertificateInfo(hostname), null);
+        const certPromise = withAbort("certificate", getTLSCertificateInfo(hostname), null);
         const waybackPromise = withAbort("wayback", fetchWaybackMachineData(normalizedUrl), undefined);
-        const hostMetaPromise = withAbort("hostmeta", fetchHostMetadata(normalizedUrl), undefined);
+        const hostMetaPromise = withAbort("hostMeta", fetchHostMetadata(normalizedUrl), undefined);
 
         // Use streaming fetch for main HTML to avoid memory issues on large pages
         // Use getRootResourceUrl to ensure robots.txt, llms.txt and sitemap.xml are fetched from the domain root
