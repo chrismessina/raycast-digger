@@ -479,10 +479,16 @@ export function useFetchSite(url?: string) {
           });
         }
 
-        const dnsPromise = withAbort("dns", performDNSLookup(hostname), undefined);
-        const certPromise = withAbort("certificate", getTLSCertificateInfo(hostname), null);
+        // Fallbacks restate each helper's OLD sentinel, so a failure yields the
+        // value the UI and the JSON export always received — `{}` here, not a
+        // missing `dns` key. The reason now reaches the banner instead of the data.
+        const dnsPromise = withAbort("dns", performDNSLookup(hostname), {});
+        const certPromise =
+          urlObj.protocol === "https:"
+            ? withAbort("certificate", getTLSCertificateInfo(hostname), null)
+            : Promise.resolve(null);
         const waybackPromise = withAbort("wayback", fetchWaybackMachineData(normalizedUrl), undefined);
-        const hostMetaPromise = withAbort("hostMeta", fetchHostMetadata(normalizedUrl), undefined);
+        const hostMetaPromise = withAbort("hostMeta", fetchHostMetadata(normalizedUrl), { available: false });
 
         // Use streaming fetch for main HTML to avoid memory issues on large pages
         // Use getRootResourceUrl to ensure robots.txt, llms.txt and sitemap.xml are fetched from the domain root

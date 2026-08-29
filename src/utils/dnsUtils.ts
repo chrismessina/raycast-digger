@@ -77,7 +77,15 @@ export async function performDNSLookup(hostname: string): Promise<DNSData> {
     note(e); // CNAME records not found
   }
 
-  if (Object.keys(dnsData).length === 0 && firstError !== undefined) {
+  // Only a RESOLVER-level failure is worth reporting. "No such record" is not:
+  // `dns.resolve*` queries DNS directly, bypassing the OS resolver, so a host
+  // that works via /etc/hosts, mDNS, or an IP literal legitimately has no records
+  // and would otherwise banner an error on a page that loaded perfectly. A domain
+  // that genuinely does not exist is already reported by the main fetch failing,
+  // so nothing is lost by staying quiet here.
+  const RESOLVER_FAILURE = new Set(["ESERVFAIL", "ETIMEOUT", "ECONNREFUSED", "EREFUSED"]);
+  const code = (firstError as NodeJS.ErrnoException | undefined)?.code;
+  if (Object.keys(dnsData).length === 0 && code !== undefined && RESOLVER_FAILURE.has(code)) {
     throw firstError;
   }
 
@@ -154,7 +162,20 @@ export async function getTLSCertificateInfo(hostname: string, port = LIMITS.TLS_
     // Reject rather than resolve(null). The caller wraps this in withAbort(...,
     // null), which turns a rejection back into exactly that null — so the value
     // the UI sees is unchanged, but the reason survives and can be reported.
+    //
+    // EXCEPT when nothing is listening on 443. A site served over plain HTTP has
+    // no TLS to report on, and `normalizeUrl` keeps an explicit `http://` while
+    // `fetchHeadOnlyWithFallback` can also drop an https attempt down to http —
+    // so this is an ordinary, benign case, not a degraded HTTPS lookup. Treat it
+    // like the "peer presented no certificate" branch above: an answer, not a
+    // failure. Anything else (handshake rejected, bad cert, timeout) is real.
+    const NO_TLS_SERVICE = new Set(["ECONNREFUSED", "EHOSTUNREACH", "ENETUNREACH", "ENOTFOUND"]);
     socket.on("error", (err) => {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code && NO_TLS_SERVICE.has(code)) {
+        resolve(null);
+        return;
+      }
       reject(err);
     });
 
