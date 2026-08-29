@@ -1,7 +1,7 @@
 import { Color, Icon, List } from "@raycast/api";
 import { getProgressIcon } from "@raycast/utils";
 import { Actions, DiscoverabilityActions } from "../actions";
-import { DiggerResult } from "../types";
+import { DiggerResult, ResourceStatus } from "../types";
 import { truncateText } from "../utils/formatters";
 import { getRootResourceUrl, resolveUrl } from "../utils/urlUtils";
 
@@ -37,10 +37,12 @@ export function Discoverability({ data, onRefresh, progress }: DiscoverabilityPr
   const { discoverability } = data;
 
   const hasRobots = !!discoverability?.robots;
-  const hasRobotsTxt = !!discoverability?.robotsTxt;
+  const robotsTxtStatus = discoverability?.robotsTxt;
+  const hasRobotsTxt = robotsTxtStatus === "found";
   const hasCanonical = !!discoverability?.canonical;
   const hasSitemap = !!discoverability?.sitemap;
-  const hasLlmsTxt = !!discoverability?.llmsTxt;
+  const llmsTxtStatus = discoverability?.llmsTxt;
+  const hasLlmsTxt = llmsTxtStatus === "found";
   const hasContentSignals = !!discoverability?.contentSignals;
   const hasAlternates = !!(discoverability?.alternates && discoverability.alternates.length > 0);
   const hasPaymentSignals = !!discoverability?.paymentSignals?.detected;
@@ -65,10 +67,10 @@ export function Discoverability({ data, onRefresh, progress }: DiscoverabilityPr
         <DiscoverabilityDetail
           data={data}
           hasRobots={hasRobots}
-          hasRobotsTxt={hasRobotsTxt}
+          robotsTxtStatus={robotsTxtStatus}
           hasCanonical={hasCanonical}
           hasSitemap={hasSitemap}
-          hasLlmsTxt={hasLlmsTxt}
+          llmsTxtStatus={llmsTxtStatus}
           hasContentSignals={hasContentSignals}
           hasPaymentSignals={hasPaymentSignals}
           sitemapUrl={sitemapUrl}
@@ -98,10 +100,10 @@ export function Discoverability({ data, onRefresh, progress }: DiscoverabilityPr
 interface DiscoverabilityDetailProps {
   data: DiggerResult;
   hasRobots: boolean;
-  hasRobotsTxt: boolean;
+  robotsTxtStatus: ResourceStatus | undefined;
   hasCanonical: boolean;
   hasSitemap: boolean;
-  hasLlmsTxt: boolean;
+  llmsTxtStatus: ResourceStatus | undefined;
   hasContentSignals: boolean;
   hasPaymentSignals: boolean;
   sitemapUrl: string | undefined;
@@ -113,10 +115,10 @@ interface DiscoverabilityDetailProps {
 function DiscoverabilityDetail({
   data,
   hasRobots,
-  hasRobotsTxt,
+  robotsTxtStatus,
   hasCanonical,
   hasSitemap,
-  hasLlmsTxt,
+  llmsTxtStatus,
   hasContentSignals,
   hasPaymentSignals,
   sitemapUrl,
@@ -125,6 +127,29 @@ function DiscoverabilityDetail({
   hasAlternates,
 }: DiscoverabilityDetailProps) {
   const { discoverability } = data;
+
+  // "Not found" is a claim. Only make it when the server actually answered.
+  const resourceRow = (title: string, status: ResourceStatus | undefined, href: string | undefined) => {
+    if (status === "found" && href) {
+      return <List.Item.Detail.Metadata.Link title={title} target={href} text="✔︎ Found" />;
+    }
+    if (status === "unavailable") {
+      return (
+        <List.Item.Detail.Metadata.Label
+          title={title}
+          text="Couldn't check"
+          icon={{ source: Icon.QuestionMarkCircle, tintColor: Color.Orange }}
+        />
+      );
+    }
+    return (
+      <List.Item.Detail.Metadata.Label
+        title={title}
+        text="Not found"
+        icon={{ source: Icon.Xmark, tintColor: Color.Red }}
+      />
+    );
+  };
 
   return (
     <List.Item.Detail
@@ -160,24 +185,8 @@ function DiscoverabilityDetail({
               icon={{ source: Icon.Xmark, tintColor: Color.Red }}
             />
           )}
-          {hasRobotsTxt && robotsUrl ? (
-            <List.Item.Detail.Metadata.Link title="robots.txt" target={robotsUrl} text="✔︎ Found" />
-          ) : (
-            <List.Item.Detail.Metadata.Label
-              title="robots.txt"
-              text="Not found"
-              icon={{ source: Icon.Xmark, tintColor: Color.Red }}
-            />
-          )}
-          {hasLlmsTxt && llmsTxtUrl ? (
-            <List.Item.Detail.Metadata.Link title="LLMs.txt" target={llmsTxtUrl} text="✔︎ Found" />
-          ) : (
-            <List.Item.Detail.Metadata.Label
-              title="LLMs.txt"
-              text="Not found"
-              icon={{ source: Icon.Xmark, tintColor: Color.Red }}
-            />
-          )}
+          {resourceRow("robots.txt", robotsTxtStatus, robotsUrl)}
+          {resourceRow("LLMs.txt", llmsTxtStatus, llmsTxtUrl)}
           <List.Item.Detail.Metadata.Separator />
           <List.Item.Detail.Metadata.Label
             title="Content Signals"

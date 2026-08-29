@@ -90,7 +90,11 @@ export function getDomain(url: string): string {
  */
 export function getCacheKey(url: string): string {
   const normalized = normalizeUrl(url);
-  return `digger_cache_${normalized}`;
+  // Bump the version when the cached SHAPE changes. v2: robotsTxt/llmsTxt became
+  // a three-state ResourceStatus instead of a boolean, so a v1 entry would read
+  // `true` into a string field and render as "unavailable". Versioning the key
+  // retires those entries instead of asking every reader to accept both shapes.
+  return `digger_cache_v2_${normalized}`;
 }
 
 /**

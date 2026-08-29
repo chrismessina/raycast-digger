@@ -15,6 +15,7 @@ import {
   MetadataData,
   OverviewData,
   PaymentSignalsData,
+  ResourceStatus,
 } from "../types";
 import { detectBotProtection } from "../utils/botDetection";
 import { LIMITS } from "../utils/config";
@@ -147,6 +148,28 @@ function classifyError(
     message: errorMessage || "An unexpected error occurred.",
     recoverable: true,
   };
+}
+
+/**
+ * Classify a settled well-known-resource fetch into found / absent / unavailable.
+ *
+ * The distinction this exists to make: 404 and 410 are ANSWERS — the site
+ * publishes no robots.txt — while a 5xx, a timeout, or a refused connection tell
+ * us nothing about what the site publishes. Reporting the second as "Not found"
+ * states a fact that was never established, which is what this replaces.
+ *
+ * A soft 404 (a 200 serving an HTML error page) counts as absent: the server
+ * answered, and the answer is "there is nothing here".
+ */
+function classifyResourceResult(
+  settled: PromiseSettledResult<{ exists: boolean; status: number; isSoft404?: boolean } | null>,
+): ResourceStatus {
+  // Rejected = timeout or transport error. fetchTextResource rethrows both.
+  if (settled.status === "rejected" || settled.value === null) return "unavailable";
+  const { exists, status, isSoft404 } = settled.value;
+  if (exists) return "found";
+  if (status === 404 || status === 410 || isSoft404) return "absent";
+  return "unavailable";
 }
 
 /** Get user-friendly description for a fetch category */
@@ -497,9 +520,11 @@ export function useFetchSite(url?: string) {
         const sitemapUrl = getRootResourceUrl("sitemap.xml", normalizedUrl);
         const [htmlResult, robotsTxtResult, llmsTxtResult, sitemapResult] = await Promise.allSettled([
           fetchHeadOnlyWithFallback(normalizedUrl, undefined, abortController.signal),
-          robotsUrl ? fetchTextResource(robotsUrl).catch(() => null) : Promise.resolve(null),
-          llmsTxtUrl ? fetchTextResource(llmsTxtUrl).catch(() => null) : Promise.resolve(null),
-          sitemapUrl ? fetchWithTimeout(sitemapUrl).catch(() => null) : Promise.resolve(null),
+          // No `.catch(() => null)`: allSettled already contains a rejection, and
+          // swallowing it here is what made a timeout indistinguishable from a 404.
+          robotsUrl ? fetchTextResource(robotsUrl) : Promise.resolve(null),
+          llmsTxtUrl ? fetchTextResource(llmsTxtUrl) : Promise.resolve(null),
+          sitemapUrl ? fetchWithTimeout(sitemapUrl) : Promise.resolve(null),
         ]);
 
         if (htmlResult.status === "rejected") {
@@ -674,19 +699,46 @@ export function useFetchSite(url?: string) {
           paymentResponse: paymentSignals?.paymentResponse ?? false,
         });
 
+        // A 200 from fetchWithTimeout is the only "found" for sitemap.xml; it has
+        // no exists/soft-404 notion, so synthesise the shape the classifier reads.
+        const sitemapStatus = classifyResourceResult(
+          sitemapResult.status === "fulfilled"
+            ? {
+                status: "fulfilled",
+                value: sitemapResult.value
+                  ? {
+                      exists: sitemapResult.value.status >= 200 && sitemapResult.value.status < 300,
+                      status: sitemapResult.value.status,
+                    }
+                  : null,
+              }
+            : sitemapResult,
+        );
+        const robotsStatus = classifyResourceResult(robotsTxtResult);
+        const llmsStatus = classifyResourceResult(llmsTxtResult);
+
+        // Surface the ones we could not establish, same banner as the other
+        // lookups. `absent` is an answer and stays silent.
+        for (const [category, status, settled] of [
+          ["robots", robotsStatus, robotsTxtResult],
+          ["llmsTxt", llmsStatus, llmsTxtResult],
+          ["sitemap", sitemapStatus, sitemapResult],
+        ] as const) {
+          if (status !== "unavailable" || !ownsView()) continue;
+          const reason =
+            settled.status === "rejected"
+              ? settled.reason
+              : new Error(`HTTP ${settled.value && "status" in settled.value ? settled.value.status : "error"}`);
+          addFetchError(category, reason);
+        }
+
         const discoverability: DiscoverabilityData = {
           robots: $('meta[name="robots"]').attr("content"),
-          robotsTxt:
-            robotsTxtResult.status === "fulfilled" && !!robotsTxtResult.value && robotsTxtResult.value.exists === true,
+          robotsTxt: robotsStatus,
           canonical: $('link[rel="canonical"]').attr("href"),
-          sitemap:
-            sitemapResult.status === "fulfilled" &&
-            sitemapResult.value &&
-            sitemapResult.value.status >= 200 &&
-            sitemapResult.value.status < 300
-              ? sitemapUrl
-              : undefined,
-          llmsTxt: llmsTxtResult.status === "fulfilled" && !!llmsTxtResult.value && llmsTxtResult.value.exists === true,
+          sitemap: sitemapStatus === "found" ? sitemapUrl : undefined,
+          sitemapStatus,
+          llmsTxt: llmsStatus,
           contentSignals,
           paymentSignals,
         };
