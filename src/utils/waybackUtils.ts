@@ -46,9 +46,12 @@ export async function fetchWaybackMachineData(url: string): Promise<HistoryData 
       };
     }
 
+    // 429 above is a legitimate result with its own flag. Everything else that is
+    // not OK is a failure, and returning undefined made it indistinguishable from
+    // "this site has no archive".
     if (!response.ok) {
       log.warn("wayback:error", { url: redactUrlForLog(url), status: response.status });
-      return undefined;
+      throw new Error(`Wayback availability request failed with HTTP ${response.status}`);
     }
 
     const data = (await response.json()) as {
@@ -196,8 +199,10 @@ export async function fetchWaybackMachineData(url: string): Promise<HistoryData 
     });
     return result;
   } catch (err) {
+    // Rethrow; withAbort(..., undefined) restores the old return value while
+    // letting the reason reach the error banner.
     log.warn("wayback:error", { url: redactUrlForLog(url), error: err instanceof Error ? err.message : String(err) });
-    return undefined;
+    throw err;
   }
 }
 

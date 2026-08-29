@@ -466,9 +466,14 @@ export function useFetchSite(url?: string) {
                 stop({ failed: error instanceof Error ? error.message : String(error) });
                 // Surface it. These were swallowed into a fallback, so a site
                 // whose DNS or TLS lookup failed rendered an empty section with
-                // nothing saying why. Guarded because a superseded fetch's late
-                // rejection must not land in the newer dig's error list.
-                if (!isSuperseded()) addFetchError(category, error);
+                // nothing saying why.
+                //
+                // `ownsView()`, NOT `isSuperseded()`. Both are true once a newer
+                // dig takes over, but this dig also aborts its OWN controller
+                // after a main-fetch failure — so `isSuperseded()` would drop a
+                // late auxiliary error belonging to the dig still on screen.
+                // Ownership is the question being asked here.
+                if (ownsView()) addFetchError(category, error);
                 resolve(fallback);
               });
           });
