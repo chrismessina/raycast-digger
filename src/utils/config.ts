@@ -32,6 +32,12 @@ export const CACHE = {
    * index read (see getCacheIndex).
    */
   KEY_PREFIX: "digger_cache_v2_",
+  /**
+   * Shared prefix across ALL cache-key versions, used to find entries left by
+   * earlier versions. INDEX_KEY starts with this too, so it must be excluded
+   * explicitly wherever this is used to identify payloads.
+   */
+  KEY_FAMILY: "digger_cache_",
 } as const;
 
 /**
