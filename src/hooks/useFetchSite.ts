@@ -713,18 +713,18 @@ export function useFetchSite(url?: string) {
         const robotsStatus = classifyResourceResult(robotsTxtResult);
         const llmsStatus = classifyResourceResult(llmsTxtResult);
 
-        // Surface the ones we could not establish, same banner as the other
-        // lookups. `absent` is an answer and stays silent.
-        for (const [category, status, settled] of [
-          ["robots", robotsStatus, robotsTxtResult],
-          ["llmsTxt", llmsStatus, llmsTxtResult],
-          ["sitemap", sitemapStatus, sitemapResult],
-        ] as const) {
-          if (status !== "unavailable" || !ownsView()) continue;
-          const reason =
-            settled.status === "rejected" ? settled.reason : new Error(`HTTP ${settled.value?.status ?? "error"}`);
-          addFetchError(category, reason);
-        }
+        // These three are NOT added to the error banner, deliberately.
+        //
+        // Each already reports itself in its own Discoverability row, and
+        // "Couldn't check" sitting next to robots.txt says more, in context, than
+        // a line in a banner at the top of the list. Adding both meant one slow
+        // site produced a loud "4 failed" header for three optional files whose
+        // rows had already said so — the banner is for lookups with nowhere else
+        // to speak (DNS, certificate, Wayback, host-meta), not a second copy of
+        // something already on screen.
+        //
+        // These statuses are still computed above and still drive their rows;
+        // only the duplicate banner entry is dropped.
 
         const discoverability: DiscoverabilityData = {
           robots: $('meta[name="robots"]').attr("content"),

@@ -96,12 +96,25 @@ export function PartialErrorBanner({ fetchErrors, onRetry }: PartialErrorBannerP
   const failedCategories = fetchErrors.map((e) => e.description).join(", ");
   const errorDetails = fetchErrors.map((e) => `${e.description}: ${e.message}`).join("\n");
 
+  // This row is FIRST in the list, so it is selected on arrival. Without a detail
+  // it hands the user a blank right-hand pane as the first thing they see — the
+  // parent renders `isShowingDetail`, and a List.Item with no `detail` fills
+  // nothing. The per-component causes were only reachable via ⌘K before.
+  const detailMarkdown = [
+    "## Some data couldn't be loaded",
+    "",
+    "The page itself loaded. These lookups did not complete, so their sections are incomplete rather than empty:",
+    "",
+    ...fetchErrors.map((e) => `- **${e.description}** — ${e.message}`),
+  ].join("\n");
+
   return (
     <List.Item
       title="Some data couldn't be loaded"
       subtitle={failedCategories}
       icon={{ source: Icon.ExclamationMark, tintColor: Color.Orange }}
       accessories={[{ text: `${fetchErrors.length} failed`, icon: Icon.Warning }]}
+      detail={<List.Item.Detail markdown={detailMarkdown} />}
       actions={
         <ActionPanel>
           <Action
