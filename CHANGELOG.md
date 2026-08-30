@@ -2,6 +2,10 @@
 
 ## [Report failed DNS, certificate, Wayback and host-metadata lookups] - {PR_MERGE_DATE}
 
+### Changed
+
+- Updated to Raycast API 2.x.
+
 ### Fixed
 
 - A failed DNS, SSL certificate, Wayback Machine or host-metadata lookup rendered an empty section with nothing saying why. Those failures are now listed in the "Some data couldn't be loaded" banner, with the underlying cause.
