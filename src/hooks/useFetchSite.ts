@@ -162,12 +162,14 @@ function classifyError(
  * answered, and the answer is "there is nothing here".
  */
 function classifyResourceResult(
-  settled: PromiseSettledResult<{ exists: boolean; status: number; isSoft404?: boolean } | null>,
+  settled: PromiseSettledResult<{ exists?: boolean; status: number; isSoft404?: boolean } | null>,
 ): ResourceStatus {
   // Rejected = timeout or transport error. fetchTextResource rethrows both.
   if (settled.status === "rejected" || settled.value === null) return "unavailable";
   const { exists, status, isSoft404 } = settled.value;
-  if (exists) return "found";
+  // `exists` carries fetchTextResource's soft-404 judgement. sitemap.xml comes
+  // from fetchWithTimeout, which has no such notion, so fall back to the status.
+  if (exists ?? (status >= 200 && status < 300)) return "found";
   if (status === 404 || status === 410 || isSoft404) return "absent";
   return "unavailable";
 }
@@ -699,21 +701,7 @@ export function useFetchSite(url?: string) {
           paymentResponse: paymentSignals?.paymentResponse ?? false,
         });
 
-        // A 200 from fetchWithTimeout is the only "found" for sitemap.xml; it has
-        // no exists/soft-404 notion, so synthesise the shape the classifier reads.
-        const sitemapStatus = classifyResourceResult(
-          sitemapResult.status === "fulfilled"
-            ? {
-                status: "fulfilled",
-                value: sitemapResult.value
-                  ? {
-                      exists: sitemapResult.value.status >= 200 && sitemapResult.value.status < 300,
-                      status: sitemapResult.value.status,
-                    }
-                  : null,
-              }
-            : sitemapResult,
-        );
+        const sitemapStatus = classifyResourceResult(sitemapResult);
         const robotsStatus = classifyResourceResult(robotsTxtResult);
         const llmsStatus = classifyResourceResult(llmsTxtResult);
 
@@ -726,9 +714,7 @@ export function useFetchSite(url?: string) {
         ] as const) {
           if (status !== "unavailable" || !ownsView()) continue;
           const reason =
-            settled.status === "rejected"
-              ? settled.reason
-              : new Error(`HTTP ${settled.value && "status" in settled.value ? settled.value.status : "error"}`);
+            settled.status === "rejected" ? settled.reason : new Error(`HTTP ${settled.value?.status ?? "error"}`);
           addFetchError(category, reason);
         }
 

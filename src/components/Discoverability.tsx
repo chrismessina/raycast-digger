@@ -38,11 +38,9 @@ export function Discoverability({ data, onRefresh, progress }: DiscoverabilityPr
 
   const hasRobots = !!discoverability?.robots;
   const robotsTxtStatus = discoverability?.robotsTxt;
-  const hasRobotsTxt = robotsTxtStatus === "found";
   const hasCanonical = !!discoverability?.canonical;
   const hasSitemap = !!discoverability?.sitemap;
   const llmsTxtStatus = discoverability?.llmsTxt;
-  const hasLlmsTxt = llmsTxtStatus === "found";
   const hasContentSignals = !!discoverability?.contentSignals;
   const hasAlternates = !!(discoverability?.alternates && discoverability.alternates.length > 0);
   const hasPaymentSignals = !!discoverability?.paymentSignals?.detected;
@@ -69,7 +67,7 @@ export function Discoverability({ data, onRefresh, progress }: DiscoverabilityPr
           hasRobots={hasRobots}
           robotsTxtStatus={robotsTxtStatus}
           hasCanonical={hasCanonical}
-          hasSitemap={hasSitemap}
+          sitemapStatus={discoverability?.sitemapStatus}
           llmsTxtStatus={llmsTxtStatus}
           hasContentSignals={hasContentSignals}
           hasPaymentSignals={hasPaymentSignals}
@@ -87,8 +85,8 @@ export function Discoverability({ data, onRefresh, progress }: DiscoverabilityPr
           sectionActions={
             <DiscoverabilityActions
               sitemapUrl={sitemapUrl}
-              robotsUrl={hasRobotsTxt ? robotsUrl : undefined}
-              llmsTxtUrl={hasLlmsTxt ? llmsTxtUrl : undefined}
+              robotsUrl={robotsTxtStatus === "found" ? robotsUrl : undefined}
+              llmsTxtUrl={llmsTxtStatus === "found" ? llmsTxtUrl : undefined}
             />
           }
         />
@@ -102,7 +100,7 @@ interface DiscoverabilityDetailProps {
   hasRobots: boolean;
   robotsTxtStatus: ResourceStatus | undefined;
   hasCanonical: boolean;
-  hasSitemap: boolean;
+  sitemapStatus: ResourceStatus | undefined;
   llmsTxtStatus: ResourceStatus | undefined;
   hasContentSignals: boolean;
   hasPaymentSignals: boolean;
@@ -117,7 +115,7 @@ function DiscoverabilityDetail({
   hasRobots,
   robotsTxtStatus,
   hasCanonical,
-  hasSitemap,
+  sitemapStatus,
   llmsTxtStatus,
   hasContentSignals,
   hasPaymentSignals,
@@ -176,15 +174,7 @@ function DiscoverabilityDetail({
               hasRobots ? { source: Icon.Check, tintColor: Color.Green } : { source: Icon.Xmark, tintColor: Color.Red }
             }
           />
-          {hasSitemap && sitemapUrl ? (
-            <List.Item.Detail.Metadata.Link title="Sitemap" target={sitemapUrl} text="✔︎ Found" />
-          ) : (
-            <List.Item.Detail.Metadata.Label
-              title="Sitemap"
-              text="Not found"
-              icon={{ source: Icon.Xmark, tintColor: Color.Red }}
-            />
-          )}
+          {resourceRow("Sitemap", sitemapStatus, sitemapUrl)}
           {resourceRow("robots.txt", robotsTxtStatus, robotsUrl)}
           {resourceRow("LLMs.txt", llmsTxtStatus, llmsTxtUrl)}
           <List.Item.Detail.Metadata.Separator />
