@@ -13,7 +13,22 @@ async function getCacheIndex(): Promise<CacheIndex> {
   if (!indexStr) {
     return { keys: [], lastAccessed: {} };
   }
-  return JSON.parse(indexStr);
+  const index: CacheIndex = JSON.parse(indexStr);
+
+  // Drop entries written under an older key version. The index itself is NOT
+  // versioned, so bumping the payload prefix alone would leave the old keys
+  // listed here forever: never read (every lookup now builds a v2 key), never
+  // expired (the 48h check only runs on a read), and still counting toward
+  // MAX_ENTRIES — so a full index would evict live entries to make room for
+  // dead ones. Purge them once, on the first read after an upgrade.
+  const stale = index.keys.filter((k) => !k.startsWith(CACHE.KEY_PREFIX));
+  if (stale.length === 0) return index;
+
+  await Promise.all(stale.map((k) => LocalStorage.removeItem(k)));
+  index.keys = index.keys.filter((k) => k.startsWith(CACHE.KEY_PREFIX));
+  for (const k of stale) delete index.lastAccessed[k];
+  await saveCacheIndex(index);
+  return index;
 }
 
 async function saveCacheIndex(index: CacheIndex): Promise<void> {

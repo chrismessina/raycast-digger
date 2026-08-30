@@ -68,6 +68,7 @@ export function Discoverability({ data, onRefresh, progress }: DiscoverabilityPr
           robotsTxtStatus={robotsTxtStatus}
           hasCanonical={hasCanonical}
           sitemapStatus={discoverability?.sitemapStatus}
+          isLoading={isLoading}
           llmsTxtStatus={llmsTxtStatus}
           hasContentSignals={hasContentSignals}
           hasPaymentSignals={hasPaymentSignals}
@@ -101,6 +102,7 @@ interface DiscoverabilityDetailProps {
   robotsTxtStatus: ResourceStatus | undefined;
   hasCanonical: boolean;
   sitemapStatus: ResourceStatus | undefined;
+  isLoading: boolean;
   llmsTxtStatus: ResourceStatus | undefined;
   hasContentSignals: boolean;
   hasPaymentSignals: boolean;
@@ -116,6 +118,7 @@ function DiscoverabilityDetail({
   robotsTxtStatus,
   hasCanonical,
   sitemapStatus,
+  isLoading,
   llmsTxtStatus,
   hasContentSignals,
   hasPaymentSignals,
@@ -130,6 +133,12 @@ function DiscoverabilityDetail({
   const resourceRow = (title: string, status: ResourceStatus | undefined, href: string | undefined) => {
     if (status === "found" && href) {
       return <List.Item.Detail.Metadata.Link title={title} target={href} text="✔︎ Found" />;
+    }
+    // A status is undefined until Promise.allSettled resolves. Saying "Not found"
+    // there restates the very assertion this row exists to avoid — the request
+    // has not come back yet, so nothing about the file has been established.
+    if (status === undefined && isLoading) {
+      return <List.Item.Detail.Metadata.Label title={title} text="Checking…" icon={Icon.Clock} />;
     }
     if (status === "unavailable") {
       return (

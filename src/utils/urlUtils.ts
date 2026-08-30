@@ -1,3 +1,5 @@
+import { CACHE } from "./config";
+
 /**
  * Normalize a given URL by trimming whitespace, prepending with "https://" if necessary, lowercasing the scheme and hostname, and removing a trailing slash if present.
  * @param {string} url The URL to normalize.
@@ -90,11 +92,9 @@ export function getDomain(url: string): string {
  */
 export function getCacheKey(url: string): string {
   const normalized = normalizeUrl(url);
-  // Bump the version when the cached SHAPE changes. v2: robotsTxt/llmsTxt became
-  // a three-state ResourceStatus instead of a boolean, so a v1 entry would read
-  // `true` into a string field and render as "unavailable". Versioning the key
-  // retires those entries instead of asking every reader to accept both shapes.
-  return `digger_cache_v2_${normalized}`;
+  // The version lives in CACHE.KEY_PREFIX so the purge in getCacheIndex and the
+  // key built here can never disagree about what "current" means.
+  return `${CACHE.KEY_PREFIX}${normalized}`;
 }
 
 /**

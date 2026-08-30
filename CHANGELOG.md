@@ -5,7 +5,7 @@
 ### Fixed
 
 - A failed DNS, SSL certificate, Wayback Machine or host-metadata lookup rendered an empty section with nothing saying why. Those failures are now listed in the "Some data couldn't be loaded" banner, with the underlying cause.
-- robots.txt, llms.txt and sitemap.xml no longer report "Not found" when the check itself failed. A 5xx, a timeout or a refused connection now reads "Couldn't check" and is listed in the banner; only a real 404 says the file is absent.
+- robots.txt, llms.txt and sitemap.xml no longer report "Not found" when the check itself failed. A 5xx, a timeout or a refused connection now reads "Couldn't check" and is listed in the banner, and rows read "Checking…" until the request comes back. Only an answer from the server — a 404, a 410, or a page that is really an error page — says the file is absent.
 
 ## [Failed digs no longer hang, and shortcuts work on Windows] - 2026-08-11
 

@@ -186,13 +186,17 @@ function generateMarkdownReport(data: DiggerResult): string {
     if (discoverability.robots) {
       markdown += `- **Robots**: ${discoverability.robots}\n`;
     }
-    if (discoverability.sitemap) {
-      markdown += `- **Sitemap**: ${discoverability.sitemap}\n`;
-    }
     // Same distinction as the UI: "Not found" is only claimed when the server
     // answered. A 5xx or a timeout reports as unchecked, not absent.
     const resourceText = (status?: string) =>
       status === "found" ? "Found" : status === "unavailable" ? "Couldn't check" : "Not found";
+    if (discoverability.sitemap) {
+      markdown += `- **Sitemap**: ${discoverability.sitemap}\n`;
+    } else if (discoverability.sitemapStatus !== undefined) {
+      // Printing the URL only on success meant a timed-out sitemap vanished from
+      // the report entirely — the reader could not tell it had been checked.
+      markdown += `- **Sitemap**: ${resourceText(discoverability.sitemapStatus)}\n`;
+    }
     if (discoverability.robotsTxt !== undefined) {
       markdown += `- **robots.txt**: ${resourceText(discoverability.robotsTxt)}\n`;
     }

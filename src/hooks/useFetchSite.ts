@@ -160,6 +160,14 @@ function classifyError(
  *
  * A soft 404 (a 200 serving an HTML error page) counts as absent: the server
  * answered, and the answer is "there is nothing here".
+ *
+ * That soft-404 judgement comes from `fetchTextResource`, so it applies to
+ * robots.txt and llms.txt only. sitemap.xml is fetched with `fetchWithTimeout`,
+ * which does no content validation, so a 200 serving an HTML error page still
+ * scores `found` there. Routing it through `fetchTextResource` would NOT fix
+ * that: `isValidTextResource` rejects anything starting with `<?xml`, so every
+ * real sitemap would be scored a soft 404 instead. Detecting it needs an
+ * XML-aware check, which this does not attempt.
  */
 function classifyResourceResult(
   settled: PromiseSettledResult<{ exists?: boolean; status: number; isSoft404?: boolean } | null>,

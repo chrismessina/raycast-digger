@@ -25,6 +25,13 @@ export const CACHE = {
   MAX_ENTRIES: 50,
   /** Key used to store the cache index in LocalStorage */
   INDEX_KEY: "digger_cache_index",
+  /**
+   * Prefix for cached entries. BUMP THE VERSION whenever the cached shape
+   * changes — v2 arrived when robotsTxt/llmsTxt became a ResourceStatus string
+   * rather than a boolean. Entries under an older prefix are purged on the next
+   * index read (see getCacheIndex).
+   */
+  KEY_PREFIX: "digger_cache_v2_",
 } as const;
 
 /**
