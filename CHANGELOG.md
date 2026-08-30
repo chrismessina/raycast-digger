@@ -9,6 +9,8 @@
 ### Fixed
 
 - A failed DNS, SSL certificate, Wayback Machine or host-metadata lookup rendered an empty section with nothing saying why. Those failures are now listed in the "Some data couldn't be loaded" banner, with the underlying cause.
+- A dig that came back empty is no longer cached. A site answering an unhappy status with no body — a bot-block or an edge error — parsed into a result with no title, resources or metadata, and caching it pinned that empty view for the full 48-hour TTL, so re-running the command changed nothing.
+- A non-2xx status is now marked in Overview. Only 200 carried an indicator, so an error status read like a normal result next to an empty page.
 - robots.txt, llms.txt and sitemap.xml no longer report "Not found" when the check itself failed. A 5xx, a timeout or a refused connection now reads "Couldn't check" in that row, and rows read "Checking…" until the request comes back. Only an answer from the server — a 404 or a 410, or for robots.txt and llms.txt a page that is really an error page — says the file is absent.
 
 ## [Failed digs no longer hang, and shortcuts work on Windows] - 2026-08-11

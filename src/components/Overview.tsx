@@ -106,6 +106,17 @@ function OverviewDetail({ data, statusText, contentType, contentLength, finalUrl
     resources?.images?.find((img) => img.type === "twitter") ??
     resources?.images?.find((img) => img.type === "json-ld");
 
+  // Only 200 was marked before, so every other status — a 404, a redirect, or
+  // digg.xyz answering 436 behind Cloudflare — rendered with no affordance at all
+  // and read like a normal result sitting next to an empty page.
+  const code = networking?.statusCode;
+  const statusIcon =
+    code === undefined
+      ? undefined
+      : code >= 200 && code < 300
+        ? { source: Icon.Check, tintColor: Color.Green }
+        : { source: Icon.ExclamationMark, tintColor: Color.Orange };
+
   // Build markdown with image if available
   const markdown = representativeImage
     ? `![${representativeImage.alt || "Preview"}](${representativeImage.src})`
@@ -120,11 +131,7 @@ function OverviewDetail({ data, statusText, contentType, contentLength, finalUrl
           {showDescription && <List.Item.Detail.Metadata.Label title="" text={cleanDescription} />}
           <List.Item.Detail.Metadata.Separator />
           <List.Item.Detail.Metadata.Label title="Response Details" />
-          <List.Item.Detail.Metadata.Label
-            title="Status"
-            text={statusText}
-            icon={networking?.statusCode === 200 ? { source: Icon.Check, tintColor: Color.Green } : undefined}
-          />
+          <List.Item.Detail.Metadata.Label title="Status" text={statusText} icon={statusIcon} />
           <List.Item.Detail.Metadata.Link title="Final URL" target={finalUrl} text={finalUrl} />
           <List.Item.Detail.Metadata.Label
             title="Response Time"

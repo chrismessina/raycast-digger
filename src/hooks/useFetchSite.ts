@@ -1230,9 +1230,32 @@ export function useFetchSite(url?: string) {
           return;
         }
         setData(result);
-        // The predicate is re-checked inside, after eviction — passing the guard
-        // above only proves we were current when the write STARTED.
-        await saveToCache(normalizedUrl, result, isSuperseded);
+
+        // Only cache a result worth serving again.
+        //
+        // `fetchHeadOnlyWithFallback` throws on transport failure but NOT on an
+        // unhappy HTTP status, so a bot-block or edge error — digg.xyz answering
+        // 436 with an empty body behind Cloudflare — parses into a result with no
+        // title, no resources and no metadata. Caching that pinned the broken
+        // view for the full 48h TTL: every later dig was a cache hit, so the site
+        // looked permanently empty and re-running changed nothing.
+        //
+        // Skipping the write costs one refetch and lets the next dig actually
+        // retry. `fetchErrors` is not part of DiggerResult either, so a cached
+        // failure would also lose its banner and its Retry All — the statuses
+        // would persist with nothing left to explain or repair them.
+        const usable = status >= 200 && status < 300 && streamedHtml.length > 0;
+        if (usable) {
+          // The predicate is re-checked inside, after eviction — passing the
+          // guard above only proves we were current when the write STARTED.
+          await saveToCache(normalizedUrl, result, isSuperseded);
+        } else {
+          log.warn("cache:skipped-unusable", {
+            url: redactUrlForLog(normalizedUrl),
+            status,
+            htmlLength: streamedHtml.length,
+          });
+        }
         log.log("fetch:complete", { url: normalizedUrl });
       } catch (err) {
         // Say nothing if a newer dig owns the view — whether it cancelled us or we
