@@ -4,6 +4,7 @@
 
 ### Added
 
+- The Overview row now shows the site's own favicon as soon as it decodes, falling back to a globe rather than sitting on a chain icon while a third-party favicon lookup runs.
 - Host metadata (`/.well-known/host-meta`) now appears under Data Feeds & API. It was being fetched and cached on every dig but rendered nowhere, so the result was invisible even when it succeeded.
 
 ### Changed

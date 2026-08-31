@@ -1095,6 +1095,14 @@ export function useFetchSite(url?: string) {
         });
 
         // Build resources and dataFeeds objects once for reuse
+        // The page's own declared icon. `OverviewData.favicon` has always been in
+        // the type and read by the Markdown export, but nothing ever set it — so
+        // the export silently omitted the line and the UI had to fall back to a
+        // third-party favicon service. The URL is right here, already absolute.
+        // Prefer the plain icon; an apple-touch-icon is a fine second.
+        overview.favicon =
+          images.find((i) => i.type === "favicon")?.src ?? images.find((i) => i.type === "apple-touch-icon")?.src;
+
         const resources = {
           stylesheets: stylesheets.length > 0 ? stylesheets : undefined,
           scripts: scripts.length > 0 ? scripts : undefined,
