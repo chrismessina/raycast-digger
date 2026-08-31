@@ -41,8 +41,9 @@ function getErrorIcon(errorType: ErrorType | null): { icon: Icon; color: Color }
  * in the sidebar, duplicating the detail pane beside it and implying there was a
  * list of things to pick from. The empty state is the honest shape.
  *
- * Modelled on karakeep's ConnectionErrorView. The partial-failure case is
- * different and stays a row — see PartialErrorBanner below.
+ * Modelled on karakeep's ConnectionErrorView. A PARTIAL failure is different and
+ * is not shown here at all: each section reports its own lookup, so the record
+ * survives a cache hit that component state would not.
  */
 export function ErrorDisplay({ error, errorType, fetchErrors, onRetry, url }: ErrorDisplayProps) {
   const { icon, color } = getErrorIcon(errorType);
@@ -77,55 +78,6 @@ export function ErrorDisplay({ error, errorType, fetchErrors, onRetry, url }: Er
             title="Copy Error Details"
             content={detail}
             icon={Icon.Clipboard}
-            shortcut={Keyboard.Shortcut.Common.Copy}
-          />
-        </ActionPanel>
-      }
-    />
-  );
-}
-
-interface PartialErrorBannerProps {
-  fetchErrors: FetchError[];
-  onRetry: () => void;
-}
-
-export function PartialErrorBanner({ fetchErrors, onRetry }: PartialErrorBannerProps) {
-  if (fetchErrors.length === 0) return null;
-
-  const failedCategories = fetchErrors.map((e) => e.description).join(", ");
-  const errorDetails = fetchErrors.map((e) => `${e.description}: ${e.message}`).join("\n");
-
-  // This row is FIRST in the list, so it is selected on arrival. Without a detail
-  // it hands the user a blank right-hand pane as the first thing they see — the
-  // parent renders `isShowingDetail`, and a List.Item with no `detail` fills
-  // nothing. The per-component causes were only reachable via ⌘K before.
-  const detailMarkdown = [
-    "## Some data couldn't be loaded",
-    "",
-    "The page itself loaded. These lookups did not complete, so their sections are incomplete rather than empty:",
-    "",
-    ...fetchErrors.map((e) => `- **${e.description}** — ${e.message}`),
-  ].join("\n");
-
-  return (
-    <List.Item
-      title="Some data couldn't be loaded"
-      subtitle={failedCategories}
-      icon={{ source: Icon.ExclamationMark, tintColor: Color.Orange }}
-      accessories={[{ text: `${fetchErrors.length} failed`, icon: Icon.Warning }]}
-      detail={<List.Item.Detail markdown={detailMarkdown} />}
-      actions={
-        <ActionPanel>
-          <Action
-            title="Retry All"
-            icon={Icon.ArrowClockwise}
-            onAction={onRetry}
-            shortcut={Keyboard.Shortcut.Common.Refresh}
-          />
-          <Action.CopyToClipboard
-            title="Copy Error Details"
-            content={errorDetails}
             shortcut={Keyboard.Shortcut.Common.Copy}
           />
         </ActionPanel>

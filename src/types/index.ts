@@ -11,6 +11,15 @@ export interface DiggerResult {
   dataFeeds?: DataFeedsData;
   hostMetadata?: HostMetadataData;
   botProtection?: BotProtectionData;
+  /**
+   * Outcome of each auxiliary lookup, so a section can say "Couldn't check"
+   * itself rather than relying on a banner.
+   *
+   * This lives on the RESULT, not in component state, precisely so it survives
+   * caching: `fetchErrors` does not, which is why a cached partial failure used
+   * to show failed rows with nothing left on screen to explain them.
+   */
+  lookups?: Partial<Record<FetchCategory, ResourceStatus>>;
   fetchedAt: number;
 }
 

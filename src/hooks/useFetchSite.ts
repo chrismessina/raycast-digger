@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import { useCallback, useRef, useState } from "react";
-import { Clipboard, Toast } from "@raycast/api";
+import { Clipboard, showToast, Toast } from "@raycast/api";
 import { showFailureToast } from "@raycast/utils";
 import {
   BotProtectionData,
@@ -460,6 +460,7 @@ export function useFetchSite(url?: string) {
         // than at each call site.
         function withAbort<T>(category: FetchCategory, promise: Promise<T>, fallback: T): Promise<T> {
           const done = log.time(category);
+          lookups[category] = "unavailable"; // pessimistic until it settles
           // `log.time()` hands back an unguarded closure, and abort can race the
           // promise settling — without this gate a slow fetch logs two durations.
           let stopped = false;
@@ -492,6 +493,7 @@ export function useFetchSite(url?: string) {
               .then((value) => {
                 release();
                 stop();
+                lookups[category] = "found";
                 resolve(value);
               })
               .catch((error) => {
@@ -506,6 +508,7 @@ export function useFetchSite(url?: string) {
                 // after a main-fetch failure — so `isSuperseded()` would drop a
                 // late auxiliary error belonging to the dig still on screen.
                 // Ownership is the question being asked here.
+                lookupErrors[category] = errorDetail(error);
                 if (ownsView()) addFetchError(category, error);
                 resolve(fallback);
               });
@@ -515,6 +518,13 @@ export function useFetchSite(url?: string) {
         // Fallbacks restate each helper's OLD sentinel, so a failure yields the
         // value the UI and the JSON export always received — `{}` here, not a
         // missing `dns` key. The reason now reaches the banner instead of the data.
+        // Per-category outcome, carried into the result so each section can report
+        // itself. Seeded pessimistically in withAbort and flipped on success.
+        const lookups: Partial<Record<FetchCategory, ResourceStatus>> = {};
+        // The toast needs each reason synchronously; `fetchErrors` is React state
+        // and will not have flushed by the time we build the message.
+        const lookupErrors: Partial<Record<FetchCategory, string>> = {};
+
         const dnsPromise = withAbort("dns", performDNSLookup(hostname), {});
         const certPromise =
           urlObj.protocol === "https:"
@@ -1213,6 +1223,7 @@ export function useFetchSite(url?: string) {
           history: finalHistoryData,
           dataFeeds,
           hostMetadata,
+          lookups,
           fetchedAt: Date.now(),
         };
 
@@ -1244,6 +1255,30 @@ export function useFetchSite(url?: string) {
         // retry. `fetchErrors` is not part of DiggerResult either, so a cached
         // failure would also lose its banner and its Retry All — the statuses
         // would persist with nothing left to explain or repair them.
+        // One heads-up, then get out of the way. The durable record is each
+        // section's own row, which survives a cache hit; this is only so a
+        // failure is not silent on the run that produced it.
+        const failed = (Object.keys(lookups) as FetchCategory[]).filter((c) => lookups[c] === "unavailable");
+        if (failed.length > 0 && ownsView()) {
+          const names = failed.map(getCategoryDescription);
+          const detail = failed
+            .map((c) => `${getCategoryDescription(c)}: ${lookupErrors[c] ?? "lookup failed"}`)
+            .join("\n");
+          await showToast({
+            style: Toast.Style.Failure,
+            title: "Some data couldn't be loaded",
+            message: names.join(", "),
+            primaryAction: {
+              title: "Copy Error",
+              shortcut: { macOS: { modifiers: ["cmd"], key: "c" }, Windows: { modifiers: ["ctrl"], key: "c" } },
+              onAction: (toast: Toast) => {
+                Clipboard.copy(detail);
+                toast.hide();
+              },
+            },
+          });
+        }
+
         const usable = status >= 200 && status < 300 && streamedHtml.length > 0;
         if (usable) {
           // The predicate is re-checked inside, after eviction — passing the
