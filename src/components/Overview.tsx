@@ -1,4 +1,4 @@
-import { Color, Icon, List } from "@raycast/api";
+import { Color, Icon, Image, List } from "@raycast/api";
 import { getFavicon, getProgressIcon } from "@raycast/utils";
 import { Actions } from "../actions";
 import { DiggerResult } from "../types";
@@ -12,10 +12,30 @@ interface OverviewProps {
 }
 
 export function Overview({ data, onRefresh, overallProgress }: OverviewProps) {
-  // Show favicon once data is available, otherwise show progress
   const isStillLoading = !data;
-  const favicon = data?.url ? getFavicon(data.url) : null;
-  const progressIcon = isStillLoading ? getProgressIcon(overallProgress, Color.Blue) : (favicon ?? Icon.Globe);
+
+  // Never block the icon slot on a favicon.
+  //
+  // `getFavicon` asks a third-party service, and its default fallback is
+  // Icon.Link — so the row sat on a chain glyph for as long as that lookup took,
+  // which on a slow or icon-less host is until it gives up. Two changes:
+  //
+  //  1. Prefer the icon the PAGE declared. We already parsed it into
+  //     resources.images and resolved it to an absolute URL, so there is no
+  //     discovery step at all — Raycast just loads the image and swaps it in.
+  //  2. Fall back to Icon.Globe rather than Icon.Link. A globe reads as "a
+  //     website whose icon we don't have"; a chain reads as "a link", which is
+  //     what every other row in this list already is.
+  //
+  // Either way the fallback renders immediately and is replaced when the real
+  // icon decodes, which is the lazy behaviour asked for.
+  const declaredFavicon = data?.overview?.favicon;
+  const siteIcon: Image.ImageLike | undefined = !data
+    ? undefined
+    : declaredFavicon
+      ? { source: declaredFavicon, fallback: Icon.Globe }
+      : getFavicon(data.url, { fallback: Icon.Globe });
+  const progressIcon = isStillLoading ? getProgressIcon(overallProgress, Color.Blue) : (siteIcon ?? Icon.Globe);
 
   if (!data) {
     return (
