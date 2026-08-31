@@ -2,9 +2,14 @@
 
 ## [Report failed DNS, certificate, Wayback and host-metadata lookups] - {PR_MERGE_DATE}
 
+### Added
+
+- Host metadata (`/.well-known/host-meta`) now appears under Data Feeds & API. It was being fetched and cached on every dig but rendered nowhere, so the result was invisible even when it succeeded.
+
 ### Changed
 
 - Updated to Raycast API 2.x.
+- A lookup that fails now says so in its own section — DNS, SSL certificate, Wayback and host metadata each read "Couldn't check" — instead of a single truncated banner row at the top of the list. A toast announces it once. Because the statuses travel with the result, a cached dig still explains itself.
 
 ### Fixed
 
