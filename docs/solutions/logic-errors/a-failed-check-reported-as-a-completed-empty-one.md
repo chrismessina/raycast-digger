@@ -157,6 +157,11 @@ the same rule applied where a type change wasn't available.
 - **Write the test for the mixed sequence, not the uniform one.** All-benign and
   all-failing both passed throughout; only `["ENODATA", "ESERVFAIL", …]` — benign
   first, real failure after — reproduced the DNS bug.
+- **A comment claiming a guarantee is not the guarantee.** The DNS section carried a
+  comment reading "say so here rather than letting every row below assert an absence we
+  never established" — directly above six rows that went on asserting exactly that. The
+  comment described the intent; nothing enforced it. When a comment states an invariant,
+  find the line that makes it true or the comment is the only thing that is.
 - **A fix for this class can reintroduce it.** Two of the five instances here were
   introduced *while fixing another one*. When the remedy is "detect the failure case,"
   check whether the detector is exhaustive or merely plausible before calling it done.
