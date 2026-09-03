@@ -310,8 +310,8 @@ export function useFetchSite(url?: string) {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchSite = useCallback(
-    async (targetUrl: string) => {
-      log.log("fetch:start", { targetUrl });
+    async (targetUrl: string, { skipCache = false }: { skipCache?: boolean } = {}) => {
+      log.log("fetch:start", { targetUrl, skipCache });
 
       // Cancel any previous fetch in progress
       if (abortControllerRef.current) {
@@ -393,7 +393,15 @@ export function useFetchSite(url?: string) {
         const normalizedUrl = normalizeUrl(targetUrl);
         log.log("fetch:normalized", { normalizedUrl });
 
-        const cached = await getFromCache(normalizedUrl);
+        // Skip the READ, deliberately without deleting the entry: a success
+        // overwrites it via saveToCache anyway, while delete-then-fetch discards
+        // a usable copy the moment the network is down and adds a second
+        // read-modify-write on the cache index racing saveToCache's.
+        //
+        // Scope: this preserves the cached ENTRY, not the on-screen result.
+        // `data` is reset before the fetch, so a failed refresh still lands on
+        // the error screen; the cached copy comes back by re-running the command.
+        const cached = skipCache ? null : await getFromCache(normalizedUrl);
         // A newer fetch can start during the cache read, and a cache hit is the
         // FASTEST path here — dig a cached site, immediately dig another, and
         // without this the first one's cached payload lands on top of the second,
@@ -530,7 +538,11 @@ export function useFetchSite(url?: string) {
           urlObj.protocol === "https:"
             ? withAbort("certificate", getTLSCertificateInfo(hostname), null)
             : Promise.resolve(null);
-        const waybackPromise = withAbort("wayback", fetchWaybackMachineData(normalizedUrl), undefined);
+        const waybackPromise = withAbort(
+          "wayback",
+          fetchWaybackMachineData(normalizedUrl, abortController.signal),
+          undefined,
+        );
         const hostMetaPromise = withAbort("hostMeta", fetchHostMetadata(normalizedUrl), { available: false });
 
         // Use streaming fetch for main HTML to avoid memory issues on large pages
@@ -1361,7 +1373,7 @@ export function useFetchSite(url?: string) {
 
   const refetch = useCallback(() => {
     if (url) {
-      fetchSite(url);
+      fetchSite(url, { skipCache: true });
     }
   }, [url, fetchSite]);
 

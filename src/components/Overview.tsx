@@ -18,7 +18,7 @@ export function Overview({ data, onRefresh, overallProgress }: OverviewProps) {
   //
   // `getFavicon` asks a third-party service, and its default fallback is
   // Icon.Link — so the row sat on a chain glyph for as long as that lookup took,
-  // which on a slow or icon-less host is until it gives up. Two changes:
+  // which on a slow or icon-less host is until it gives up. Three changes:
   //
   //  1. Prefer the icon the PAGE declared. We already parsed it into
   //     resources.images and resolved it to an absolute URL, so there is no
@@ -26,15 +26,23 @@ export function Overview({ data, onRefresh, overallProgress }: OverviewProps) {
   //  2. Fall back to Icon.Globe rather than Icon.Link. A globe reads as "a
   //     website whose icon we don't have"; a chain reads as "a link", which is
   //     what every other row in this list already is.
+  //  3. Only reach for a REMOTE icon when the host actually served us a page.
+  //     `fallback` covers an image that fails to load; it does nothing for one
+  //     that never resolves, and the slot renders EMPTY the whole time. On a
+  //     host that answered 436 — or did not answer at all — its favicon is not
+  //     going to load either, so pointing at it trades a globe for a blank.
   //
-  // Either way the fallback renders immediately and is replaced when the real
-  // icon decodes, which is the lazy behaviour asked for.
+  // The fallback renders immediately and is replaced when the real icon
+  // decodes, which is the lazy behaviour asked for.
+  const servedAPage = !!data?.networking?.statusCode && data.networking.statusCode < 400;
   const declaredFavicon = data?.overview?.favicon;
   const siteIcon: Image.ImageLike | undefined = !data
     ? undefined
-    : declaredFavicon
-      ? { source: declaredFavicon, fallback: Icon.Globe }
-      : getFavicon(data.url, { fallback: Icon.Globe });
+    : !servedAPage
+      ? Icon.Globe
+      : declaredFavicon
+        ? { source: declaredFavicon, fallback: Icon.Globe }
+        : getFavicon(data.url, { fallback: Icon.Globe });
   const progressIcon = isStillLoading ? getProgressIcon(overallProgress, Color.Blue) : (siteIcon ?? Icon.Globe);
 
   if (!data) {

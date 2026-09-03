@@ -45,7 +45,6 @@ export interface OverviewData {
   title?: string;
   description?: string;
   favicon?: string;
-  screenshot?: string;
   language?: string;
   charset?: string;
 }
@@ -181,11 +180,9 @@ export interface ResourcesData {
 }
 
 export interface NetworkingData {
-  ipAddress?: string;
   server?: string;
   headers?: Record<string, string>;
   statusCode?: number;
-  redirects?: Array<{ from: string; to: string; status: number }>;
   finalUrl?: string;
 }
 
@@ -200,10 +197,7 @@ export interface DNSData {
 
 export interface PerformanceData {
   loadTime?: number;
-  ttfb?: number;
-  domContentLoaded?: number;
   pageSize?: number;
-  requestCount?: number;
 }
 
 export interface HistoryData {

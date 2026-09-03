@@ -255,14 +255,8 @@ function generateMarkdownReport(data: DiggerResult): string {
     if (performance.loadTime) {
       markdown += `- **Load Time**: ${Math.round(performance.loadTime)}ms\n`;
     }
-    if (performance.ttfb) {
-      markdown += `- **TTFB**: ${Math.round(performance.ttfb)}ms\n`;
-    }
     if (performance.pageSize) {
       markdown += `- **Page Size**: ${formatBytes(performance.pageSize)}\n`;
-    }
-    if (performance.requestCount) {
-      markdown += `- **Requests**: ${performance.requestCount}\n`;
     }
     markdown += `\n`;
   }
