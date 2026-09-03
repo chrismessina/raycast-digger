@@ -174,5 +174,4 @@ the same rule applied where a type change wasn't available.
 - `/Users/messina/Developer/GitHub/chrismessina/raycast-digger/docs/solutions/logic-errors/abort-signal-conflates-self-cancel-and-supersede.md`
   — same module, same "green gates, wrong runtime behavior" shape, different cause
   (cancellation identity rather than error substitution).
-- Shipped in the Digger release opened as raycast/extensions#30742 (draft at time of
-  writing).
+- Shipped in raycast/extensions#30742, merged 2026-09-03.
