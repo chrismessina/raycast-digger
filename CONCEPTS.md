@@ -56,3 +56,10 @@ This is the normal degraded state, not an error state. The dig still returns a r
 each failed section says so in place, and the failure travels with the cached result so
 that re-reading it later still explains itself rather than presenting the gaps as
 findings.
+
+Reporting is two-tier, and the tiers are not interchangeable. Every failure is reported
+**in place**, on the row it belongs to. Only the loss of a whole subsystem — name
+resolution, the certificate, archive history, host metadata — also **interrupts** with a
+toast. A single unreachable file inside a section stays in that section, because the
+reader reviews sections one at a time and an interruption that fires for details is one
+they learn to dismiss.
