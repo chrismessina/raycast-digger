@@ -511,11 +511,14 @@ export function useFetchSite(url?: string) {
                 // whose DNS or TLS lookup failed rendered an empty section with
                 // nothing saying why.
                 //
-                // `ownsView()`, NOT `isSuperseded()`. Both are true once a newer
-                // dig takes over, but this dig also aborts its OWN controller
-                // after a main-fetch failure — so `isSuperseded()` would drop a
-                // late auxiliary error belonging to the dig still on screen.
-                // Ownership is the question being asked here.
+                // `ownsView()`, NOT `isSuperseded()`. The two disagree in exactly
+                // one case, and it is this one: a newer dig makes isSuperseded
+                // true and ownsView FALSE, but this dig also aborts its OWN
+                // controller after a main-fetch failure — leaving isSuperseded
+                // true while ownsView is still true, because the ref still points
+                // here. `isSuperseded()` would therefore drop a late auxiliary
+                // error belonging to the dig still on screen. Ownership is the
+                // question being asked.
                 lookupErrors[category] = errorDetail(error);
                 if (ownsView()) addFetchError(category, error);
                 resolve(fallback);
