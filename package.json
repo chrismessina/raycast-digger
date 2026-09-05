@@ -22,9 +22,9 @@
     {
       "name": "verboseLogging",
       "title": "Debug Logging",
-      "description": "Enable extra diagnostics for troubleshooting and bug reports.",
+      "description": "Show detailed logs in the console for debugging.",
       "type": "checkbox",
-      "label": "Enable",
+      "label": "Enable extra diagnostics in the console",
       "default": false,
       "required": false
     }

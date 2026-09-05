@@ -146,10 +146,15 @@ same in a log.
   You do not need to pre-redact for those.
   What automatic redaction cannot catch is a **sensitive value under an unremarkable key**
   on a URL the user supplied: `?sid=`, `?u=`, a document id. Nothing in the name marks it
-  as secret. For that, `redactUrlForLog` (`src/utils/urlUtils.ts`) is the blunt instrument
-  — it keeps origin and path and drops the query entirely. Reach for it when logging a
-  whole user-supplied URL at warn/error level, where the line is most likely to be pasted
-  into a bug report; plain `log.log` of a URL is fine on the automatic path.
+  as secret. `redactUrlForLog` (`src/utils/urlUtils.ts`) is the blunt answer — origin and
+  path, no query.
+  **Use it sparingly, and never reflexively on the analysis path.** In this extension the
+  query string is frequently *the thing being analysed*: log `example.com/search?q=foo`
+  without its query and the line now describes a different request than the one that ran,
+  which costs more than it protects. These logs are local, off by default, and only appear
+  when the user turns on Debug Logging — a debug log that omits the input is not a safer
+  log, it is a useless one. Reserve `redactUrlForLog` for a URL that is genuinely
+  incidental to the message; the automatic path is the default.
 - Cached results carry their own failure statuses, so a cache hit still explains itself.
   If you add a lookup, its status has to live in the cached shape, not in component
   state.
