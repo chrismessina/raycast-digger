@@ -139,13 +139,17 @@ same in a log.
   a ⌘-only shortcut is unreachable on Windows. Check the whole resolved ActionPanel for
   collisions; `ray lint` does not.
 - No `any`. No hand-defined `Preferences`/`Arguments` types — Raycast generates them.
-- Use `@chrismessina/raycast-logger` for anything that makes a web request. Pass any URL
-  through `redactUrlForLog` (`src/utils/urlUtils.ts`) first — it keeps origin and path and
-  drops the query, which is where tokens and personal data live. **This is a requirement,
-  not a description: the codebase is not fully converted.** Most warn/error sinks redact,
-  but some info-level logs still pass the raw URL (`useFetchSite.ts` `fetch:start`,
-  `waybackUtils.ts` `wayback:start`). Redact new call sites; converting an existing one is
-  a welcome drive-by.
+- Use `@chrismessina/raycast-logger` for anything that makes a web request. It redacts
+  automatically — every message goes through `redactString` and every argument through
+  `sanitizeArgs`, and `enableRedaction` defaults on — so `?token=…`, `?api_key=…` and
+  `Bearer …` are already masked wherever they appear, including inside logged objects.
+  You do not need to pre-redact for those.
+  What automatic redaction cannot catch is a **sensitive value under an unremarkable key**
+  on a URL the user supplied: `?sid=`, `?u=`, a document id. Nothing in the name marks it
+  as secret. For that, `redactUrlForLog` (`src/utils/urlUtils.ts`) is the blunt instrument
+  — it keeps origin and path and drops the query entirely. Reach for it when logging a
+  whole user-supplied URL at warn/error level, where the line is most likely to be pasted
+  into a bug report; plain `log.log` of a URL is fine on the automatic path.
 - Cached results carry their own failure statuses, so a cache hit still explains itself.
   If you add a lookup, its status has to live in the cached shape, not in component
   state.
