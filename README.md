@@ -124,6 +124,13 @@ Digger fetches websites directly from your machine. No data is sent to third-par
 - **Wayback Machine API** — To retrieve archive history
 - **DNS lookups** — Standard system DNS resolution
 
+**Debug Logging** (off by default, in preferences) writes detailed diagnostics to the
+Raycast console. Those logs stay on your machine — nothing is uploaded — and credentials
+are masked automatically: values under names like `token`, `key`, or `api_key`, and
+`Bearer` tokens, are replaced with `***` wherever they appear, including inside logged
+objects. Masking is pattern-based, so a sensitive value under an unremarkable parameter
+name can still appear in full — worth a skim before pasting a log into a bug report.
+
 ## Troubleshooting
 
 ### Bot protection detected
