@@ -189,9 +189,11 @@ export async function fetchHeadOnlyWithFallback(
     // that is worth surfacing even when the user has not opted into verbose
     // diagnostics — `log` would hide it from the bug report that needs it most.
     //
-    // The URL is stripped of its query string first: warn is not verbose-gated,
-    // so it emits for every user, and the logger's redactor does not scrub
-    // arbitrary query values. See redactUrlForLog.
+    // The URL is stripped of its query string first, because `warn` is NOT
+    // verbose-gated — it emits for every user, including one who enabled
+    // nothing. The logger's strict level would also cover this, but it is a
+    // user preference and off by default, so it cannot be the protection on a
+    // sink the user never opted into. See redactUrlForLog.
     const httpUrl = url.replace(/^https:\/\//i, "http://");
     log.warn("fetchHeadOnlyWithFallback:https-failed-trying-http", {
       url: redactUrlForLog(url),

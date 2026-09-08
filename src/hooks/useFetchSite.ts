@@ -1000,8 +1000,8 @@ export function useFetchSite(url?: string) {
             // result. That degradation is invisible in the UI, which makes it
             // exactly the thing a bug report needs to carry.
             //
-            // Query string stripped because warn is not verbose-gated — see
-            // redactUrlForLog.
+            // Query string stripped because warn is not verbose-gated, so it
+            // emits for a user who enabled nothing — see redactUrlForLog.
             log.warn("parse:manifest-error", {
               url: redactUrlForLog(manifestUrl),
               error: e instanceof Error ? e.message : "unknown",

@@ -141,20 +141,21 @@ same in a log.
 - No `any`. No hand-defined `Preferences`/`Arguments` types — Raycast generates them.
 - Use `@chrismessina/raycast-logger` for anything that makes a web request. It redacts
   automatically — every message goes through `redactString` and every argument through
-  `sanitizeArgs`, and `enableRedaction` defaults on — so `?token=…`, `?api_key=…` and
-  `Bearer …` are already masked wherever they appear, including inside logged objects.
-  You do not need to pre-redact for those.
-  What automatic redaction cannot catch is a **sensitive value under an unremarkable key**
-  on a URL the user supplied: `?sid=`, `?u=`, a document id. Nothing in the name marks it
-  as secret. `redactUrlForLog` (`src/utils/urlUtils.ts`) is the blunt answer — origin and
-  path, no query.
-  **Use it sparingly, and never reflexively on the analysis path.** In this extension the
-  query string is frequently *the thing being analysed*: log `example.com/search?q=foo`
-  without its query and the line now describes a different request than the one that ran,
-  which costs more than it protects. These logs are local, off by default, and only appear
-  when the user turns on Debug Logging — a debug log that omits the input is not a safer
-  log, it is a useless one. Reserve `redactUrlForLog` for a URL that is genuinely
-  incidental to the message; the automatic path is the default.
+  `sanitizeArgs` — so `?token=…`, `?api_key=…` and `Bearer …` are already masked wherever
+  they appear, including inside logged objects. You do not need to pre-redact for those.
+  **The log level decides whether you also strip the query yourself, and it is not a
+  style choice.** `log.log` is gated by the Debug Logging preference: the user opted in,
+  the query is often the very thing being diagnosed, and stripping it makes the line
+  describe a different request than the one that ran. `log.warn` and `log.error` are
+  **not** gated — they emit for a user who enabled nothing — so a whole user-supplied URL
+  on those goes through `redactUrlForLog` (`src/utils/urlUtils.ts`), which keeps origin
+  and path. Every current call site is a warn or an error; that is the rule, not an
+  accident.
+  The **Strict Redaction** preference (logger ≥ 1.5.0) raises the floor everywhere when
+  the user turns it on — query and fragment masked to `?***` / `#***` across messages,
+  structured values, Error stacks and property names, far past the hand-picked sites
+  above. It does not replace `redactUrlForLog`, because it is off by default and the
+  ungated sinks cannot depend on a preference the user has not set.
 - Cached results carry their own failure statuses, so a cache hit still explains itself.
   If you add a lookup, its status has to live in the cached shape, not in component
   state.

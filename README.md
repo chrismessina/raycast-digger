@@ -129,7 +129,13 @@ Raycast console. Those logs stay on your machine — nothing is uploaded — and
 are masked automatically: values under names like `token`, `key`, or `api_key`, and
 `Bearer` tokens, are replaced with `***` wherever they appear, including inside logged
 objects. Masking is pattern-based, so a sensitive value under an unremarkable parameter
-name can still appear in full — worth a skim before pasting a log into a bug report.
+name — `?sid=`, `?u=`, a document id — can still appear in full.
+
+**Strict Redaction** (also in preferences, off by default) closes that gap: every URL query
+string and fragment is masked to `?***` / `#***`, including values no pattern can recognize.
+It applies to lines written *after* you enable it — it cannot clean up console output that
+already exists — so turn it on first, reproduce the problem, then share the new lines. It is off by default because the query string
+is frequently the thing you are trying to diagnose.
 
 ## Troubleshooting
 
