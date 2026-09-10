@@ -60,6 +60,51 @@ Specific traps, all of which have bitten:
 - **State that exists still has to reach the render path.** A section-level "Couldn't
   check" label above six rows that each still claimed an absence is not a fix.
 
+## When correctness depends on remembering, the remembering is the defect
+
+`DiggerResult` gained `wellKnown`, then `theme`, then `ThemeColor.hex`. Each needed a
+matching bump of the cache key. It was forgotten all three times, and each time produced
+the same failure: an entry cached under the old shape has no such field, the section
+renders the missing field as an established absence — "None published", "No theme
+declared", a swatch with no colour — and serves that for the whole 48h TTL. All three
+passed `tsc`, `ray build` and `ray lint`, because a missing optional field is valid.
+
+Adding a checklist item would have been the fourth chance to forget. The fix is that
+**the cache version is computed for the case that kept biting**: `scripts/cache-schema.mjs`
+hashes `src/types/index.ts` **and every file it transitively imports** — `WellKnownStatus`
+lives in `wellKnownCatalog.ts`, so hashing the entry point alone would have missed a rename
+there — into `CACHE_SCHEMA`. `CACHE.KEY_PREFIX` interpolates it, `prebuild`/`predev`
+regenerate, `prelint` fails on a stale one. Comments are stripped by a scanner that
+respects string literals, because a regex would truncate `type Url = "https://x"` at the
+`//` and make two different URLs hash alike.
+
+**Three gaps remain, and they are named rather than papered over:**
+
+- **A semantic change with an unchanged shape.** Correcting a classifier to emit
+  `"unavailable"` where it emitted `"absent"` touches no type, so the hash does not move.
+  `CACHE.SALT` in `config.ts` is bumped by hand for those — a deliberate step for a case
+  no derivation can detect.
+- **`npx ray build` and `ray lint` bypass npm lifecycle hooks**, and Store CI runs the
+  former. CI compiles whatever `cacheSchema.ts` was committed, so the gate that actually
+  protects users is `npm run lint` before committing — not the build.
+- **`ray develop` hot reloads do not regenerate.** `predev` runs once; add a cached field
+  mid-session and the rebuild keeps the old hash. Restart `npm run dev` after editing a
+  cached type.
+
+So this is not "impossible to forget" — it removes the failure that occurred three times
+and makes the residue explicit.
+
+Two rules fall out of this, and they outlive the cache:
+
+- **Derive the coupled value rather than duplicating it.** When edit A is only correct if
+  someone also makes unrelated edit B, that pair is a latent defect however well it is
+  documented. Compute B from A.
+- **Where deriving is impossible, make the stale case unrepresentable at the point of
+  use.** The same bug also reached the token merge, where cached hex-less tokens beat
+  freshly computed ones because the name was already "seen". Preferring the token that
+  actually resolved fixes it independently of any cache version — belt as well as braces,
+  because the render path should not depend on the storage layer having been correct.
+
 ## Cancellation: ownership and supersession are different questions
 
 `src/hooks/useFetchSite.ts` lets **one dig own the view at a time** — which is not the
@@ -107,6 +152,7 @@ src/components/       one per detail section
 src/actions/          ActionPanel contents, grouped by purpose
 src/utils/            fetchers, parsers, per-lookup clients, config
 src/types/            shared shapes; the status unions live here
+scripts/              build-time codegen — see the cache-schema section above
 ```
 
 ## Commands and gates
@@ -158,4 +204,5 @@ same in a log.
   ungated sinks cannot depend on a preference the user has not set.
 - Cached results carry their own failure statuses, so a cache hit still explains itself.
   If you add a lookup, its status has to live in the cached shape, not in component
-  state.
+  state. The cache VERSION takes care of itself — see the section above; do not hand-edit
+  `CACHE.KEY_PREFIX` or `src/utils/cacheSchema.ts`.
