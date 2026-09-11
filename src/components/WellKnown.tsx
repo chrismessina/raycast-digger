@@ -58,6 +58,7 @@ export function WellKnown({ data, onRefresh, progress }: WellKnownProps) {
           data={data}
           url={data.url}
           onRefresh={onRefresh}
+          sectionActionsFirst
           sectionActions={
             wellKnown && (
               <Action.Push

@@ -1,5 +1,14 @@
 # Digger Changelog
 
+## [Faster access to Well-Known files and color tokens] - {PR_MERGE_DATE}
+
+### Changed
+
+- Pressing Enter on the Well-Known and Theme sections now opens their file and
+  token lists, instead of opening the site in a browser. Those URLs mostly
+  redirect to the homepage, so Enter appeared to do nothing. Open in Browser is
+  still in the action panel.
+
 ## [Well-Known files, Theme colors, and resource exports] - 2026-09-11
 
 ### Added
