@@ -1,7 +1,7 @@
 ---
 title: A failed check reported as a completed one that found nothing
 date: 2026-09-02
-last_updated: 2026-09-03
+last_updated: 2026-09-30
 category: logic-errors
 module: useFetchSite
 problem_type: logic_error
@@ -126,7 +126,7 @@ carry it and the label is redundant.
 **6. Give the result three states, not two.** A boolean cannot hold the distinction, so
 the type has to carry it: `ResourceStatus` is `"found" | "absent" | "unavailable"`,
 classified by
-`/Users/messina/Developer/GitHub/chrismessina/raycast-digger/src/hooks/useFetchSite.ts:172`.
+`/Users/messina/Developer/GitHub/chrismessina/raycast-digger/src/hooks/useFetchSite.ts:173`.
 (session history: introduced by the robots/llms/sitemap fix earlier in this same
 release, whose witnessed test went 4/9 → 9/9 — the old boolean misclassified 500, 503,
 403, and timeout as "absent".)
