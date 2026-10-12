@@ -26,8 +26,8 @@ did not answer. The corollary is that a failure has to be *reported* somewhere, 
 nothing else in the dig will surface it — a silently swallowed lookup is
 indistinguishable from one that succeeded and found nothing.
 
-**Supersession** — the replacement of an in-flight dig by a newer one for a different
-URL.
+**Supersession** — the replacement of an in-flight dig by any newer one: a different
+URL, or a retry or reload of the same one.
 *Avoid: cancellation.*
 
 Supersession and self-cancellation both abort the same work, and telling them apart is
