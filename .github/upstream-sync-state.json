@@ -1,11 +1,11 @@
 {
-  "upstream_commit": "db454e2e8595cfcbe01f2f1f35e927a951b83d22",
-  "synced_at": "2026-10-12T19:00:35Z",
+  "upstream_commit": "3d3ed18264999e480de1cae02d8f0f5951044884",
+  "synced_at": "2026-10-29T16:05:46Z",
   "files": {
     ".gitignore": "1f41291cd0037c1f63198428d5d2131b2e104f13",
     ".prettierrc": "47d7ec67ad80dfdab257c25ad46b52af3fa8430a",
     "AGENTS.md": "12da043e175f9854cd61a0008d509c48eb68fe1c",
-    "CHANGELOG.md": "fff821d0cda1adebb142853e4e0ffee74e4f7788",
+    "CHANGELOG.md": "345e0c4d5429538b73772ffd46199971636dc4a1",
     "CONCEPTS.md": "8c6860c0f5665b67ca73eae3f061508a1910583b",
     "LICENSE": "262a067eb1f9517d8abde3ecd5eeac8de359e701",
     "README.md": "4d33579f0c88120ccb8a835c9a0895b128e3cbcc",
@@ -68,7 +68,7 @@
     "src/utils/cacheSchema.ts": "7e96eba414243f59ebbf416476fd814e0fd070f5",
     "src/utils/colorUtils.ts": "310c84ba6eced83e0390b3a5dbd5c3018deeef56",
     "src/utils/config.ts": "928591e558315414b9d31c5f02df1d89dd477624",
-    "src/utils/dnsUtils.ts": "a0fb78b06a1c7e1ac1df820f82ac81cc1c021b90",
+    "src/utils/dnsUtils.ts": "05a6cc4e616abe6dca4f677c7e7231fe6cce6f0e",
     "src/utils/errorReport.ts": "3a4da2698c9c212c400411987bf9808a7aa7339a",
     "src/utils/exportUtils.ts": "bef3de74290787d65e1b5681b3914a14308203da",
     "src/utils/fetcher.ts": "0ef6b7ef99ac20531382f9bf36bb66f88e8233ea",
