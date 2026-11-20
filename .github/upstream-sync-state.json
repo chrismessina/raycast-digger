@@ -1,6 +1,6 @@
 {
-  "upstream_commit": "18750b5bc7fe87eb76991e86f0cda47200daa48f",
-  "synced_at": "2026-11-17T21:50:55Z",
+  "upstream_commit": "e38232e713cc42a58cac81b8d3af9261fd1624e5",
+  "synced_at": "2026-11-20T17:46:06Z",
   "files": {
     ".gitignore": "1f41291cd0037c1f63198428d5d2131b2e104f13",
     ".prettierrc": "47d7ec67ad80dfdab257c25ad46b52af3fa8430a",
@@ -21,7 +21,7 @@
     "metadata/digger-4.png": "bc0c4ef5169cd27165a8f2fc80d0d829f582ab67",
     "metadata/digger-5.png": "5710b41d7b2061eb05f52550cf3f93a27fb53f80",
     "metadata/digger-6.png": "b376f608b64a434633bb166d0346feb00f788a49",
-    "package-lock.json": "ec857b97f33aace8d96817ef9aca6256c0170399",
+    "package-lock.json": "a727e660224a2531f700d9ee29bccce172d866dc",
     "package.json": "5869e71dfe21c3ddfebfac4b1f4fd41cf2875664",
     "scripts/cache-schema.mjs": "e2eeb3cf776d44c1ce8bb1fd300462a25de6cd05",
     "src/actions/Actions.tsx": "0bb77d7c82483585bdb91972cbdad4cf5f26676a",
