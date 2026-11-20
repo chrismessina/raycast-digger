@@ -17,3 +17,6 @@ compiled_raycast_rust
 .private
 .private/*
 CLAUDE.md
+
+# contributor guide stays in the mirror and never ships (see contributing-template.md)
+CONTRIBUTING.md

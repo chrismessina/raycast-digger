@@ -159,16 +159,6 @@ Some websites use Cloudflare, Akamai, or similar services that may block or chal
 - Large websites may take longer to analyze
 - Wayback Machine API can be slow or rate-limited during peak times
 
-## Contributing
-
-[Contributions](https://developers.raycast.com/basics/contribute-to-an-extension) are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request
-
-For bugs or feature requests, [open an issue](https://github.com/chrismessina/raycast-digger/issues).
-
 ## Credits
 
 Built by [Chris Messina](https://github.com/chrismessina) and his robot helpers.
@@ -177,6 +167,8 @@ Uses:
 
 - [Cheerio](https://cheerio.js.org/) for HTML parsing
 - [Wayback Machine API](https://archive.org/help/wayback_api.php) for archive data
+
+Want to contribute? See [CONTRIBUTING.md](https://github.com/chrismessina/raycast-digger/blob/main/CONTRIBUTING.md).
 
 ## License
 
