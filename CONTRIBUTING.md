@@ -6,13 +6,15 @@ Thanks for helping. This guide covers running Digger locally and sending a chang
 
 Digger is published in the [Raycast Store](https://www.raycast.com/chrismessina/digger).
 Open pull requests against [`raycast/extensions`](https://github.com/raycast/extensions/tree/main/extensions/digger),
-not this repository: Raycast reviews every change there, and merged changes sync back here
-automatically. Open [issues](https://github.com/chrismessina/raycast-digger/issues) here or in
-`raycast/extensions`, whichever you prefer.
+not this repository: Raycast reviews every change there, and merged changes come back here in a
+sync pull request. Open [issues](https://github.com/chrismessina/raycast-digger/issues) here or in
+`raycast/extensions`, whichever you prefer. Raycast's
+[contribution guide](https://developers.raycast.com/basics/contribute-to-an-extension) covers the
+fork-and-PR steps.
 
 ## Run it locally
 
-You need [Raycast](https://www.raycast.com/) and Node.js 22 or later.
+You need [Raycast](https://www.raycast.com/) and Node.js 22.22.2 or later.
 
 1. In Raycast, find Digger in the Store and choose **Fork Extension** from the action panel.
    Raycast checks out only this extension's folder from `raycast/extensions`.
@@ -31,8 +33,11 @@ You need [Raycast](https://www.raycast.com/) and Node.js 22 or later.
 | `npm run fix-lint` | Fix what the linter can fix |
 | `npm test` | Run the unit tests in `tests/` |
 | `npm run cache-schema` | Regenerate `src/utils/cacheSchema.ts` |
+| `predev`, `prebuild` | Regenerate the cache-schema hash (`scripts/cache-schema.mjs`) before `dev` and `build` |
+| `prelint` | Fail `lint` when the cache-schema hash is out of date (`cache-schema.mjs --check`) |
+| `npm run publish` | Open or update the pull request in `raycast/extensions` (`ray publish`) |
+| `prepublishOnly` | Stops `npm publish`: the extension goes to the Raycast Store, never to the npm registry |
 
-`dev` and `build` regenerate the cache schema first, and `lint` fails when it is out of date.
 
 ## How it works
 
